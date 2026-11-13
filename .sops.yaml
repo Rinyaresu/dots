@@ -1,0 +1,3 @@
+creation_rules:
+  - path_regex: ^secrets/ssh\.yaml$
+    age: age1m04mkdzl3c3aeygyl6s24l8mv8jfffn4y9knguepanphzrj4q36qym44py

@@ -1,0 +1,8 @@
+/result*
+/.direnv/
+*.qcow2
+*.img
+*.agekey
+*.key
+id_ed25519
+id_rsa
