@@ -115,4 +115,6 @@ Ordis é uma máquina instalada. Inspeção SSH não autoriza ativação, reboot
 remota. Antes de qualquer deploy autorizado, preserve a geração funcional e confira
 SSH novo, sudo, rede, armazenamento e boot. Siga `docs/ordis.md`.
 O perfil lab não pode compartilhar store, diretórios ou chaves do host.
-Faça commits e ativações somente quando solicitados. Nunca execute `git push`.
+Commits locais e publicação remota seguem `~/personal/home/references/personal.md`
+e a política de entrega indicada ali, respeitando as restrições da tarefa.
+A autorização de entrega não autoriza builds, ativações ou deploy.

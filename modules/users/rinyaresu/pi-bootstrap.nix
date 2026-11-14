@@ -16,11 +16,19 @@
         export GIT_TERMINAL_PROMPT=0
         export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ForwardAgent=no -o ConnectTimeout=10 -o ConnectionAttempts=1"
 
-        while true; do
-          if [[ -e "$HOME/.pi" || -L "$HOME/.pi" ]]; then
-            echo "Pi: ~/.pi já existe; nenhum arquivo foi alterado."
-            exit 0
+        if [[ -e "$HOME/personal/home" || -L "$HOME/personal/home" ]]; then
+          if [[ ! -f "$HOME/personal/home/references/personal.md" ]]; then
+            echo "Pi: ~/personal/home existe, mas references/personal.md está ausente; destino preservado." >&2
+            exit 1
           fi
+        fi
+        if [[ -e "$HOME/personal/home" || -L "$HOME/personal/home" ]] \
+          && [[ -e "$HOME/.pi" || -L "$HOME/.pi" ]]; then
+          echo "Pi: Home e ~/.pi já existem; nenhum arquivo foi alterado."
+          exit 0
+        fi
+
+        while true; do
           if ${pkgs.openssh}/bin/ssh-add -l >/dev/null 2>&1; then
             break
           fi
@@ -32,15 +40,30 @@
         trap 'exit 143' TERM
         trap 'exit 130' INT
 
-        ${pkgs.git}/bin/git clone --single-branch --branch experimentos \
-          git@github.com:Rinyaresu/agent.git "$work/repo"
+        restore_repo() {
+          local destination="$1" repository="$2" branch="$3" label="$4"
+          if [[ -e "$destination" || -L "$destination" ]]; then
+            echo "Pi: $label já existe; nenhum arquivo foi alterado."
+            return 0
+          fi
+          ${pkgs.coreutils}/bin/mkdir -p -- "$(dirname -- "$destination")"
+          ${pkgs.git}/bin/git clone --single-branch --branch "$branch" \
+            "$repository" "$work/$label"
+          ${pkgs.coreutils}/bin/mv -T -n -- "$work/$label" "$destination"
+          if [[ -e "$work/$label" || -L "$work/$label" ]]; then
+            echo "Pi: $destination apareceu durante a restauração; destino preservado."
+            ${pkgs.coreutils}/bin/rm -rf -- "$work/$label"
+          else
+            echo "Pi: $label restaurado em $destination (branch $branch)."
+          fi
+        }
 
-        ${pkgs.coreutils}/bin/mv -T -n -- "$work/repo" "$HOME/.pi"
-        if [[ -d "$work/repo" ]]; then
-          echo "Pi: ~/.pi apareceu durante a restauração; destino preservado."
-          exit 0
+        restore_repo "$HOME/personal/home" git@github.com:Rinyaresu/home.git main home
+        if [[ ! -f "$HOME/personal/home/references/personal.md" ]]; then
+          echo "Pi: ~/personal/home não contém references/personal.md; destino preservado." >&2
+          exit 1
         fi
-        echo "Pi: configuração restaurada em ~/.pi (branch experimentos)."
+        restore_repo "$HOME/.pi" git@github.com:Rinyaresu/agent.git main agent
       '';
     in
     {
