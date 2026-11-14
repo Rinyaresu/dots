@@ -207,8 +207,16 @@ A mesma fixture é consumida por `lib.evalModules` e por NixOS com duas contas H
 Os testes de colisão demonstram perda silenciosa e conflito mascarado. Não esperam
 uma recusa automática que o Nix não implementa.
 
-Esses testes avaliam a configuração. O build do check produz o resultado JSON.
-Não iniciam uma VM, acessam segredos, conectam ao GitHub nem ativam máquinas.
+Os checks `architecture` e `module-system` avaliam a configuração. O build desses
+checks produz o resultado JSON. Não iniciam uma VM, acessam segredos, conectam ao
+GitHub nem ativam máquinas.
+
+Pi-hole é uma capacidade somente NixOS selecionada explicitamente pela raiz Ordis
+em `modules/hosts/ordis/pihole.nix`. Esse arquivo possui a política da LAN e o
+snapshot da lista; `modules/features/pihole/` contém serviço nativo e autenticação.
+`checks.pihole-policy` verifica isolamento dos hosts e a política efetiva.
+`checks.pihole` executa VMs QEMU com DNS real e estado persistente, com fixtures
+fora da descoberta em `checks/pihole.nix`. Veja [operação e aceitação](pihole.md).
 Os comandos de formatação, check e build estão no [AGENTS.md](../AGENTS.md).
 
 ## Referências e decisões

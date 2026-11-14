@@ -22,8 +22,9 @@ nix --extra-experimental-features 'nix-command flakes' build --no-link --no-writ
   "path:$PWD#nixosConfigurations.ordis.config.system.build.toplevel"
 ```
 
-O primeiro comando avalia o flake e constrói os checks arquiteturais e do sistema
-de módulos. O segundo constrói os três sistemas sem aplicá-los. Os checks cobrem
+O primeiro comando avalia o flake, constrói os checks arquiteturais e do sistema
+de módulos e executa a integração Pi-hole em VMs QEMU (KVM recomendado).
+O segundo constrói os três sistemas sem aplicá-los. Os checks cobrem
 composição, identidade, deduplicação, dependências e isolamento. Não testam sessões
 gráficas nem hardware.
 
@@ -45,6 +46,7 @@ Noctalia. Super+Enter abre Ghostty. Não há início automático do desktop.
 - [Desktop e atalhos](docs/desktop.md).
 - [Mise, direnv, Herdr e Neovim](docs/desenvolvimento.md).
 - [Rede, VPN, Docker e VMs](docs/servicos.md).
+- [Pi-hole no Ordis: testes, implantação e recuperação](docs/pihole.md).
 - [SSH cifrado com SOPS e recuperação](secrets/README.md).
 - [Decisões da configuração](docs/decisoes.md).
 
