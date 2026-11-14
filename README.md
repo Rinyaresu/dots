@@ -3,7 +3,9 @@
 Configuração pessoal do NixOS 26.05 estável com flakes, flake-parts, import-tree
 e Home Manager. Os módulos seguem o padrão dendritic e se organizam por função.
 
-`desktop` é o host físico. `lab` é uma VM manual isolada, sem compartilhar
+`desktop` prepara a futura migração do PC CachyOS. `ordis` é o servidor doméstico
+sem desktop, com usuário próprio, SSH e systemd-boot. Leia [a operação do Ordis](docs/ordis.md).
+`lab` é uma VM manual isolada, sem compartilhar
 Nix store, diretórios ou chaves do host. O login `rinyaresu` com senha `nixos`
 existe somente no laboratório. Nunca instale o perfil `lab` no PC.
 
@@ -49,6 +51,7 @@ Cada arquivo em `modules/` é um módulo flake-parts descoberto pelo import-tree
 
 - `modules/hosts/desktop/` seleciona funcionalidades, hardware, mounts e segredos pessoais.
 - `modules/hosts/lab/` seleciona as funcionalidades da VM e mantém seu isolamento.
+- `modules/hosts/ordis/` preserva o hardware e a instalação existente do servidor, sem importar `base` ou Home Manager.
 - `modules/nix/` gera os sistemas e integra NixOS com Home Manager.
 - `modules/system/` configura serviços e políticas do sistema.
 - `modules/desktop/` configura aplicativos e sessões gráficas.
