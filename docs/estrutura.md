@@ -219,6 +219,17 @@ snapshot da lista; `modules/features/pihole/` contém serviço nativo e autentic
 fora da descoberta em `checks/pihole.nix`. Veja [operação e aceitação](pihole.md).
 Os comandos de formatação, check e build estão no [AGENTS.md](../AGENTS.md).
 
+`nixos.tailscale` publica o cliente privado sem abrir portas ou confiar na interface.
+Somente Ordis o seleciona; sua raiz define as exceções SSH da LAN e do overlay.
+O módulo usa a configuração de daemon suportada pelo pacote fixado, sem credenciais
+no store, e mantém a identidade no StateDirectory upstream. `checks.tailscale`
+acrescenta uma VM com ingress simulado e preferências reais antes do login.
+Essa VM importa a raiz completa do Ordis, gera a senha Pi-hole apenas na VM,
+mantém seu hash fora do Nix store e comprova DNS UDP/TCP na LAN, bloqueio de DNS no overlay
+e no IPv6 físico, além de preservar DNS e Pi-hole ao reiniciar o daemon Tailscale.
+O check arquitetural também exige ambos os serviços e regras de firewall sem duplicação.
+Veja [operação e limites](tailscale.md); esses testes não substituem a tailnet real.
+
 ## Referências e decisões
 
 A leitura usa revisões fixas para permitir conferir as escolhas:

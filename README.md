@@ -4,10 +4,15 @@ Configuração pessoal do NixOS 26.05 estável com flakes, flake-parts, import-t
 e Home Manager. Os módulos seguem o padrão dendritic e se organizam por função.
 
 `desktop` prepara a futura migração do PC CachyOS. `ordis` é o servidor doméstico
-sem desktop, com usuário próprio, SSH e systemd-boot. Leia [a operação do Ordis](docs/ordis.md).
+sem desktop, com usuário próprio, SSH e systemd-boot. Leia [a operação do Ordis](docs/ordis.md)
+e [acesso privado pelo notebook com Tailscale](docs/tailscale.md).
 `lab` é uma VM manual isolada, sem compartilhar
 Nix store, diretórios ou chaves do host. O login `rinyaresu` com senha `nixos`
 existe somente no laboratório. Nunca instale o perfil `lab` no PC.
+
+O perfil Ordis seleciona Pi-hole e Tailscale. Atualizar este repositório não faz
+deploy: somente um rebuild autorizado aplica os serviços. Antes de aplicar no
+servidor, siga os requisitos de credenciais e recuperação dos guias de cada serviço.
 
 ## Conferir a configuração
 
@@ -23,7 +28,9 @@ nix --extra-experimental-features 'nix-command flakes' build --no-link --no-writ
 ```
 
 O primeiro comando avalia o flake, constrói os checks arquiteturais e do sistema
-de módulos e executa a integração Pi-hole em VMs QEMU (KVM recomendado).
+de módulos e executa as integrações Pi-hole e Tailscale em VMs QEMU (KVM recomendado).
+A VM Tailscale usa a raiz real do Ordis e também verifica a coexistência com Pi-hole,
+sem autenticar dispositivos ou ativar o servidor instalado.
 O segundo constrói os três sistemas sem aplicá-los. Os checks cobrem
 composição, identidade, deduplicação, dependências e isolamento. Não testam sessões
 gráficas nem hardware.
