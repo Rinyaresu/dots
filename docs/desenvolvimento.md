@@ -21,10 +21,16 @@ ssh-add
 systemctl --user status pi-config-restore
 ```
 
-Com a chave carregada e a rede disponível, o serviço clona
-`git@github.com:Rinyaresu/agent.git`, branch `experimentos`, em `~/.pi`.
-Ele verifica a chave pública do GitHub e não pede senha ou confirmação em
-background. Uma falha de rede ou autenticação é tentada novamente após 30 segundos.
+Com a chave carregada e a rede disponível, o serviço restaura primeiro o
+repositório privado `git@github.com:Rinyaresu/home.git`, branch `main`, em
+`~/personal/home`, e depois `git@github.com:Rinyaresu/agent.git`, branch `main`,
+em `~/.pi`. Cada destino é verificado independentemente: um checkout existente
+não impede a restauração do outro. Antes de restaurar Agent, o serviço exige
+`~/personal/home/references/personal.md`; se o Home existente não passar nessa validação,
+a execução falha e preserva o destino. Destinos existentes, inclusive symlinks,
+e destinos que apareçam durante o clone nunca são substituídos. O serviço verifica
+a chave pública do GitHub e não pede senha ou confirmação em background. Uma falha
+de rede ou autenticação é tentada novamente após 30 segundos.
 
 Espere a mensagem de restauração concluída antes de abrir `pi` pela primeira vez.
 Um `~/.pi` já existente, inclusive um symlink, é preservado sem merge, pull ou
