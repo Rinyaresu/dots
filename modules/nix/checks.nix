@@ -178,10 +178,28 @@ let
       && !ordis.programs.niri.enable;
     ordis-access =
       ordis.services.openssh.enable
-      && ordis.services.openssh.openFirewall
+      && !ordis.services.openssh.openFirewall
       && ordis.networking.networkmanager.enable
       && ordis.security.sudo.wheelNeedsPassword
       && ordis.users.users.ordis.uid == 1000;
+    tailscale-only-ordis =
+      ordis.services.tailscale.enable
+      && !desktop.services.tailscale.enable
+      && !lab.services.tailscale.enable;
+    ordis-private-ssh =
+      ordis.networking.firewall.enable
+      && ordis.networking.firewall.allowedTCPPorts == [ ]
+      && ordis.networking.firewall.allowedUDPPorts == [ ]
+      && ordis.networking.firewall.interfaces.tailscale0.allowedTCPPorts == [ 22 ]
+      && !(builtins.elem "tailscale0" ordis.networking.firewall.trustedInterfaces)
+      && lib.hasInfix "-s 192.168.1.0/24 -d 192.168.1.196/32" ordis.networking.firewall.extraCommands;
+    tailscale-no-dns-or-routing =
+      ordis.services.tailscale.authKeyFile == null
+      && !ordis.services.tailscale.openFirewall
+      && ordis.services.tailscale.useRoutingFeatures == "none"
+      && ordis.services.tailscale.extraSetFlags == [ ]
+      && builtins.length ordis.services.tailscale.extraDaemonFlags == 1
+      && lib.hasPrefix "--config=" (builtins.head ordis.services.tailscale.extraDaemonFlags);
     ordis-storage-and-boot =
       ordis.fileSystems."/".device == "/dev/disk/by-uuid/4398e4d6-b2d0-4810-b45a-2f5331b44c3a"
       && ordis.fileSystems."/home".options == [ "subvol=home" ]

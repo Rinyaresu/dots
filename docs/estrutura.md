@@ -211,6 +211,13 @@ Esses testes avaliam a configuração. O build do check produz o resultado JSON.
 Não iniciam uma VM, acessam segredos, conectam ao GitHub nem ativam máquinas.
 Os comandos de formatação, check e build estão no [AGENTS.md](../AGENTS.md).
 
+`nixos.tailscale` publica o cliente privado sem abrir portas ou confiar na interface.
+Somente Ordis o seleciona; sua raiz define as exceções SSH da LAN e do overlay.
+O módulo usa a configuração de daemon suportada pelo pacote fixado, sem credenciais
+no store, e mantém a identidade no StateDirectory upstream. `checks.tailscale`
+acrescenta uma VM com ingress simulado e preferências reais antes do login.
+Veja [operação e limites](tailscale.md); esses testes não substituem a tailnet real.
+
 ## Referências e decisões
 
 A leitura usa revisões fixas para permitir conferir as escolhas:

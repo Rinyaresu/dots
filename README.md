@@ -4,7 +4,8 @@ Configuração pessoal do NixOS 26.05 estável com flakes, flake-parts, import-t
 e Home Manager. Os módulos seguem o padrão dendritic e se organizam por função.
 
 `desktop` prepara a futura migração do PC CachyOS. `ordis` é o servidor doméstico
-sem desktop, com usuário próprio, SSH e systemd-boot. Leia [a operação do Ordis](docs/ordis.md).
+sem desktop, com usuário próprio, SSH e systemd-boot. Leia [a operação do Ordis](docs/ordis.md)
+e [acesso privado pelo notebook com Tailscale](docs/tailscale.md).
 `lab` é uma VM manual isolada, sem compartilhar
 Nix store, diretórios ou chaves do host. O login `rinyaresu` com senha `nixos`
 existe somente no laboratório. Nunca instale o perfil `lab` no PC.
