@@ -4,8 +4,10 @@
 usa um destinatário age público. Nenhuma chave privada em texto simples pertence
 ao repositório ou ao Nix store.
 
-Somente o host `desktop` importa `personal-secrets` e provisiona esse arquivo.
-O perfil `lab` não recebe o segredo pessoal.
+Somente o host `desktop` seleciona `nixos.rinyaresu-ssh` e
+`homeManager.rinyaresu-ssh`. O módulo proprietário está em
+`modules/users/rinyaresu/ssh.nix`. Ele importa a infraestrutura SOPS e provisiona
+esse arquivo. Lab e Ordis não recebem o segredo pessoal.
 
 ## Guardar a recuperação no Bitwarden
 

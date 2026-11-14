@@ -15,13 +15,17 @@ Execute da raiz do repositório.
 
 ```sh
 nix --extra-experimental-features 'nix-command flakes' flake check \
-  "path:$PWD" --no-build
-nix --extra-experimental-features 'nix-command flakes' build \
-  "path:$PWD#nixosConfigurations.desktop.config.system.build.toplevel" --no-link
+  "path:$PWD" --no-write-lock-file
+nix --extra-experimental-features 'nix-command flakes' build --no-link --no-write-lock-file \
+  "path:$PWD#nixosConfigurations.desktop.config.system.build.toplevel" \
+  "path:$PWD#nixosConfigurations.lab.config.system.build.toplevel" \
+  "path:$PWD#nixosConfigurations.ordis.config.system.build.toplevel"
 ```
 
-O primeiro comando avalia a configuração. O segundo constrói o sistema sem
-aplicá-lo. Não há suíte de testes automatizados neste repositório.
+O primeiro comando avalia o flake e constrói os checks arquiteturais e do sistema
+de módulos. O segundo constrói os três sistemas sem aplicá-los. Os checks cobrem
+composição, identidade, deduplicação, dependências e isolamento. Não testam sessões
+gráficas nem hardware.
 
 `path:` inclui arquivos locais mesmo antes do primeiro commit. Ele também pode
 incluir arquivos ignorados pelo Git. Nunca coloque chaves privadas ou identidades
@@ -49,22 +53,23 @@ Noctalia. Super+Enter abre Ghostty. Não há início automático do desktop.
 `flake.nix` declara as fontes e `flake.lock` fixa suas revisões.
 Cada arquivo em `modules/` é um módulo flake-parts descoberto pelo import-tree.
 
-- `modules/hosts/desktop/` seleciona funcionalidades, hardware, mounts e segredos pessoais.
-- `modules/hosts/lab/` seleciona as funcionalidades da VM e mantém seu isolamento.
-- `modules/hosts/ordis/` preserva o hardware e a instalação existente do servidor, sem importar `base` ou Home Manager.
-- `modules/nix/` gera os sistemas e integra NixOS com Home Manager.
-- `modules/system/` configura serviços e políticas do sistema.
-- `modules/desktop/` configura aplicativos e sessões gráficas.
-- `modules/development/` configura shell, editor e ferramentas de desenvolvimento.
+- `modules/hosts/` publica cada `nixosSystem` e compõe sua raiz `nixos.host-<host>` com hardware e estado próprios.
+- `modules/features/` publica capacidades por função. Arquivos relacionados ficam juntos, como i3 e suas ferramentas.
+- `modules/users/` contém identidade e integrações pessoais, incluindo SSH cifrado e bootstrap privado do Pi.
+- `modules/nix/` contém a integração Home Manager e os checks.
 
-Os hosts selecionam funcionalidades em `configurations.nixos.<host>.modules`.
-O gerador inclui automaticamente os módulos `flake.modules.homeManager` de mesmo
-nome. Não há uma segunda lista de imports Home Manager.
+Os hosts importam explicitamente módulos `flake.modules.nixos`. Cada conta
+seleciona seus próprios módulos `flake.modules.homeManager` em
+`home-manager.users.<nome>.imports`. A integração nativa deriva nome e home da
+conta NixOS. Não existe usuário principal global ou matching por nomes de módulos.
 
-Vários arquivos podem contribuir para um grupo. Git e Fish contribuem para
-`base`. Aplicativos gráficos contribuem para `gui`. O arquivo de áudio publica
-`nixos.sound` e `homeManager.sound`. Selecionar `sound` no host inclui PipeWire
-e pavucontrol. `i3` também inclui suas ferramentas de clipboard e screenshots.
+Uma capacidade pode ter duas partes selecionáveis. `nixos.sound` configura
+PipeWire, e `homeManager.sound` instala pavucontrol na conta escolhida. i3 inclui
+suas ferramentas de clipboard e screenshots. Contribuições reutilizáveis usam
+keys nativas qualificadas para deduplicar imports sobrepostos. Nomes publicados
+e `_file` não fornecem essa garantia.
+
+Leia o [contrato de desenvolvimento](AGENTS.md) antes de alterar a composição.
 
 Leia [a composição dendritic](docs/estrutura.md) para acrescentar ou selecionar
 uma funcionalidade.

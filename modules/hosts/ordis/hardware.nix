@@ -1,5 +1,5 @@
 {
-  configurations.nixos.ordis.modules.hardware =
+  flake.modules.nixos.host-ordis =
     {
       config,
       lib,

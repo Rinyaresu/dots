@@ -1,7 +1,10 @@
 {
-  configurations.nixos.lab.modules.configuration = { config, lib, ... }: {
+  flake.modules.nixos.host-lab = { config, lib, ... }: {
     nixpkgs.hostPlatform = "x86_64-linux";
     networking.hostName = "nixos-lab";
+    system.stateVersion = "26.05";
+    boot.loader.timeout = 5;
+    console.useXkbConfig = true;
     networking.useDHCP = false;
     networking.dhcpcd.enable = false;
     users.users.rinyaresu.initialPassword = "nixos";

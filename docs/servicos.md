@@ -1,8 +1,10 @@
 # Usar serviços locais
 
+Este guia se aplica a desktop e lab. O Ordis possui [operação própria](ordis.md).
+
 ## Ferramentas básicas
 
-A base inclui `btop`, `ripgrep` (`rg`), `fd`, `fzf`, `jq`, `file`, `zip`, `unzip`,
+A funcionalidade `tools` inclui `btop`, `ripgrep` (`rg`), `fd`, `fzf`, `jq`, `file`, `zip`, `unzip`,
 `lsof`, `dnsutils` (`dig`), `pciutils` (`lspci`), `usbutils` (`lsusb`) e `gh`.
 Elas usam os padrões nativos, sem aliases ou hooks de shell adicionais.
 `rsync`, `curl`, `top`, `man` e `strace` já vêm na base do NixOS.

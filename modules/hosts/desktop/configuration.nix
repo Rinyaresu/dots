@@ -1,6 +1,9 @@
 {
-  configurations.nixos.desktop.modules.configuration = {
+  flake.modules.nixos.host-desktop = {
     networking.hostName = "desktop";
+    system.stateVersion = "26.05";
+    boot.loader.timeout = 5;
+    console.useXkbConfig = true;
     boot.loader.limine.extraEntries = ''
       /Windows
         protocol: efi
