@@ -16,24 +16,43 @@ servidor, siga os requisitos de credenciais e recuperação dos guias de cada se
 
 ## Conferir a configuração
 
-Execute da raiz do repositório.
+Use Linux x86_64 com Nix, Bash, Python 3 e Git. Execute da raiz do repositório.
 
 ```sh
-nix --extra-experimental-features 'nix-command flakes' flake check \
-  "path:$PWD" --no-write-lock-file
+./scripts/check
 nix --extra-experimental-features 'nix-command flakes' build --no-link --no-write-lock-file \
   "path:$PWD#nixosConfigurations.desktop.config.system.build.toplevel" \
   "path:$PWD#nixosConfigurations.lab.config.system.build.toplevel" \
   "path:$PWD#nixosConfigurations.ordis.config.system.build.toplevel"
 ```
 
-O primeiro comando avalia o flake, constrói os checks arquiteturais e do sistema
-de módulos e executa as integrações Pi-hole e Tailscale em VMs QEMU (KVM recomendado).
+O primeiro comando executa os testes da automação, confere a formatação, avalia
+o flake e constrói seus checks. Isso inclui os checks arquiteturais e do sistema
+de módulos e as integrações Pi-hole e Tailscale em VMs QEMU (KVM recomendado).
 A VM Tailscale usa a raiz real do Ordis e também verifica a coexistência com Pi-hole,
 sem autenticar dispositivos ou ativar o servidor instalado.
 O segundo constrói os três sistemas sem aplicá-los. Os checks cobrem
 composição, identidade, deduplicação, dependências e isolamento. Não testam sessões
 gráficas nem hardware.
+
+O workflow `Checks` executa `./scripts/check` em pushes e pull requests, num
+runner Ubuntu com KVM. Ele não aplica sistemas nem usa credenciais do homelab.
+O CI exige os builders completos dos checks. Avaliar com `--no-build` não
+comprova sua execução. Os builds de `desktop`, `lab` e `ordis` permanecem locais,
+no segundo comando acima. O CI padrão não cobre esses três builds completos.
+
+Para instalar o hook rápido neste checkout, execute:
+
+```sh
+git config --local core.hooksPath .githooks
+```
+
+Antes de cada push, `.githooks/pre-push` executa `./scripts/check --quick`.
+Esse modo verifica os testes da automação, a formatação e a avaliação do flake,
+sem construir checks ou executar VMs. Ele verifica a árvore de trabalho atual,
+não cada ref enviada. O hook não substitui o CI e pode ser ignorado pelo Git.
+O workflow só passa a executar depois de publicado. Bloquear merges exige tornar
+seu status obrigatório nas regras da branch, uma configuração separada do GitHub.
 
 `path:` inclui arquivos locais mesmo antes do primeiro commit. Ele também pode
 incluir arquivos ignorados pelo Git. Nunca coloque chaves privadas ou identidades
