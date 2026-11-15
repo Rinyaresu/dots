@@ -122,22 +122,23 @@ pkgs.testers.runNixOSTest {
 
     def dns(name, kind="A", tcp=False, expected="203.0.113.42"):
         command = f"dig @192.168.1.196 {name} {kind} +short +time=2 +tries=1 " + ("+tcp" if tcp else "")
-        answer = client.succeed(command).strip()
+        answer = client.wait_until_succeeds(
+            f"answer=$({command}); test \"$answer\" = '{expected}' && printf '%s' \"$answer\"",
+            timeout=30,
+        ).strip()
         assert answer == expected, (command, answer, expected)
         print(f"DNS EVIDENCE: {command} => {answer}")
 
     def operational():
         try:
-            client.wait_until_succeeds("dig @192.168.1.196 ads.fixture.example.com +short +time=1 +tries=1 | grep -Fx 0.0.0.0", timeout=30)
-            client.wait_until_succeeds("dig @192.168.1.196 allowed.fixture.example.com +short +time=1 +tries=1 | grep -Fx 203.0.113.42", timeout=30)
+            for tcp in [False, True]:
+                dns("allowed.fixture.example.com", tcp=tcp)
+                dns("allowed.fixture.example.com", "AAAA", tcp, "2001:db8::42")
+                dns("ads.fixture.example.com", tcp=tcp, expected="0.0.0.0")
+                dns("ads.fixture.example.com", "AAAA", tcp, "::")
         except Exception:
             print(server.execute("cat /var/log/pihole/FTL.log; tail -80 /var/log/pihole/pihole.log; systemctl status pihole-ftl pihole-ftl-setup --no-pager"))
             raise
-        for tcp in [False, True]:
-            dns("allowed.fixture.example.com", tcp=tcp)
-            dns("allowed.fixture.example.com", "AAAA", tcp, "2001:db8::42")
-            dns("ads.fixture.example.com", tcp=tcp, expected="0.0.0.0")
-            dns("ads.fixture.example.com", "AAAA", tcp, "::")
 
     with subtest("real UDP/TCP resolution, upstream and NULL blocking"):
         print(client.execute("dig @192.168.1.50 -p 5353 allowed.fixture.example.com +time=2 +tries=1"))
