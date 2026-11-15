@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+root=$(git rev-parse --show-toplevel)
+for variable in $(git rev-parse --local-env-vars); do
+  unset "$variable"
+done
+cd "$root"
+exec ./scripts/check --quick
