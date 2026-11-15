@@ -251,11 +251,11 @@ in
       set -euo pipefail
       mkdir -p "$TMPDIR/stubs"
       cat > "$TMPDIR/stubs/ssh-add" <<'EOF'
-      #!/bin/sh
+      #!${pkgs.runtimeShell}
       exit 0
       EOF
       cat > "$TMPDIR/stubs/git" <<'EOF'
-      #!/bin/bash
+      #!${pkgs.runtimeShell}
       set -euo pipefail
       [[ "$1" == clone && "$GIT_TERMINAL_PROMPT" == 0 ]]
       [[ "$GIT_SSH_COMMAND" == *StrictHostKeyChecking=yes* && "$GIT_SSH_COMMAND" == *BatchMode=yes* ]]
