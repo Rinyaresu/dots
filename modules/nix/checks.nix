@@ -192,7 +192,12 @@ let
       && ordis.networking.firewall.allowedUDPPorts == [ ]
       && ordis.networking.firewall.interfaces.tailscale0.allowedTCPPorts == [ 22 ]
       && !(builtins.elem "tailscale0" ordis.networking.firewall.trustedInterfaces)
-      && lib.hasInfix "-s 192.168.1.0/24 -d 192.168.1.196/32" ordis.networking.firewall.extraCommands;
+      && lib.hasInfix "-s 192.168.1.65/32 -d 192.168.1.196/32" ordis.networking.firewall.extraCommands
+      && ordis.services.openssh.settings.AuthenticationMethods == "publickey"
+      && !ordis.services.openssh.settings.PasswordAuthentication
+      && !ordis.services.openssh.settings.KbdInteractiveAuthentication
+      && ordis.services.openssh.settings.PermitRootLogin == "no"
+      && !ordis.services.openssh.settings.AllowAgentForwarding;
     ordis-pihole-tailscale-composition =
       ordis.services.pihole-ftl.enable
       && ordis.services.tailscale.enable
@@ -251,11 +256,11 @@ in
       set -euo pipefail
       mkdir -p "$TMPDIR/stubs"
       cat > "$TMPDIR/stubs/ssh-add" <<'EOF'
-      #!/bin/sh
+      #!${pkgs.runtimeShell}
       exit 0
       EOF
       cat > "$TMPDIR/stubs/git" <<'EOF'
-      #!/bin/bash
+      #!${pkgs.runtimeShell}
       set -euo pipefail
       [[ "$1" == clone && "$GIT_TERMINAL_PROMPT" == 0 ]]
       [[ "$GIT_SSH_COMMAND" == *StrictHostKeyChecking=yes* && "$GIT_SSH_COMMAND" == *BatchMode=yes* ]]
