@@ -12,6 +12,7 @@
       '';
       copyqSeed = pkgs.writeShellScript "copyq-seed-config" ''
         set -eu
+        umask 077
         config_dir=${config.xdg.configHome}/copyq
         config_file="$config_dir/copyq.conf"
         if [ ! -e "$config_file" ]; then
@@ -36,6 +37,20 @@
       services.dunst = {
         enable = true;
       };
+      services.redshift = {
+        enable = true;
+        temperature = {
+          day = 5900;
+          night = 2600;
+        };
+        dawnTime = "06:00-07:30";
+        duskTime = "17:00-19:00";
+        settings.redshift = {
+          adjustment-method = "randr";
+          fade = 1;
+        };
+      };
+      systemd.user.services.redshift.Unit.ConditionEnvironment = "XDG_CURRENT_DESKTOP=i3";
 
       services.copyq = {
         enable = true;

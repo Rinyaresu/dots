@@ -1,6 +1,24 @@
 {
-  flake.modules.nixos.ssh-agent = {
+  flake.modules.nixos.ssh-agent = { config, pkgs, ... }: {
     key = "${__curPos.file}#nixos.ssh-agent";
-    programs.ssh.startAgent = true;
+    programs.ssh = {
+      startAgent = true;
+      enableAskPassword = true;
+      askPassword = "${pkgs.openssh-askpass}/libexec/gtk-ssh-askpass";
+      extraConfig = ''
+        AddKeysToAgent yes
+      '';
+    };
+    environment.variables.SSH_ASKPASS_REQUIRE = "prefer";
+    assertions = [
+      {
+        assertion = !config.services.gnome.gcr-ssh-agent.enable;
+        message = "The OpenSSH agent must not compete with GCR for SSH_AUTH_SOCK.";
+      }
+      {
+        assertion = config.programs.ssh.agentTimeout == null;
+        message = "The session SSH agent keeps identities until explicit removal or agent shutdown.";
+      }
+    ];
   };
 }

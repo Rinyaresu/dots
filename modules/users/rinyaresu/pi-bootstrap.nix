@@ -28,10 +28,37 @@
           exit 0
         fi
 
+        unlock=waiting
         while true; do
-          if ${pkgs.openssh}/bin/ssh-add -l >/dev/null 2>&1; then
-            break
-          fi
+          agent_status=0
+          identities=$(${pkgs.openssh}/bin/ssh-add -E sha256 -l 2>/dev/null) || agent_status=$?
+          case "$agent_status" in
+            0|1)
+              key_info=$(${pkgs.openssh}/bin/ssh-keygen -E sha256 -lf "$HOME/.ssh/id_ed25519" </dev/null 2>/dev/null) || key_info=
+              read -r _ fingerprint _ <<< "$key_info"
+              if [[ -n "$fingerprint" ]]; then
+                while read -r _ loaded _; do
+                  if [[ "$loaded" == "$fingerprint" ]]; then
+                    break 2
+                  fi
+                done <<< "$identities"
+              fi
+              if [[ "$unlock" == waiting && -n "$fingerprint" ]]; then
+                unset DISPLAY WAYLAND_DISPLAY XAUTHORITY
+                while IFS='=' read -r name value; do
+                  case "$name" in
+                    DISPLAY|WAYLAND_DISPLAY|XAUTHORITY) export "$name=$value" ;;
+                  esac
+                done < <(${pkgs.systemd}/bin/systemctl --user show-environment)
+                if [[ -n "''${DISPLAY:-}''${WAYLAND_DISPLAY:-}" && -r "$HOME/.ssh/id_ed25519" ]]; then
+                  unlock=requested
+                  if ! ${pkgs.openssh}/bin/ssh-add "$HOME/.ssh/id_ed25519" </dev/null; then
+                    echo "Pi: desbloqueio cancelado ou indisponível; aguardando a identidade provisionada no agente." >&2
+                  fi
+                fi
+              fi
+              ;;
+          esac
           ${pkgs.coreutils}/bin/sleep 5
         done
 
@@ -73,6 +100,8 @@
         {
           assertion =
             osConfig.programs.ssh.startAgent
+            && osConfig.programs.ssh.enableAskPassword
+            && !osConfig.services.gnome.gcr-ssh-agent.enable
             &&
               (osConfig.programs.ssh.knownHosts."github.com".publicKey or null)
               == "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";
@@ -81,7 +110,7 @@
       ];
       systemd.user.services.pi-config-restore = {
         Unit = {
-          Description = "Restore Pi configuration after explicit SSH key loading";
+          Description = "Restore Pi configuration after graphical SSH unlock";
           After = [ "ssh-agent.service" ];
           Wants = [ "ssh-agent.service" ];
           StartLimitIntervalSec = 0;
@@ -89,7 +118,11 @@
         Service = {
           Type = "simple";
           ExecStart = "${restore}";
-          Environment = [ "SSH_AUTH_SOCK=%t/ssh-agent" ];
+          Environment = [
+            "SSH_AUTH_SOCK=%t/ssh-agent"
+            "SSH_ASKPASS=${osConfig.programs.ssh.askPassword}"
+            "SSH_ASKPASS_REQUIRE=force"
+          ];
           Restart = "on-failure";
           RestartSec = 30;
           RemainAfterExit = true;

@@ -1,73 +1,55 @@
-# Usar a chave SSH cifrada
+# Provisionar a chave SSH fora da fonte pública
 
-`ssh.yaml` contém a cópia SOPS cifrada da chave SSH atual. A regra em `.sops.yaml`
-usa um destinatário age público. Nenhuma chave privada em texto simples pertence
-ao repositório ou ao Nix store.
+Somente o desktop seleciona `nixos.rinyaresu-ssh` e
+`homeManager.rinyaresu-ssh`. Lab e Ordis não recebem a chave pessoal.
+A avaliação e o build usam apenas caminhos de runtime, sem ler arquivos privados.
 
-Somente o host `desktop` seleciona `nixos.rinyaresu-ssh` e
-`homeManager.rinyaresu-ssh`. O módulo proprietário está em
-`modules/users/rinyaresu/ssh.nix`. Ele importa a infraestrutura SOPS e provisiona
-esse arquivo. Lab e Ordis não recebem o segredo pessoal.
+## Contrato de ativação
 
-## Guardar a recuperação no Bitwarden
+O módulo SOPS usa estes arquivos externos.
 
-A identidade age inicial está em
-`~/.local/share/sops-nix/bootstrap/key.txt`, fora do Git e do Nix store.
-O arquivo tem permissão 0600 e seu diretório tem permissão 0700.
+| Caminho instalado | Conteúdo | Dono e modo |
+| --- | --- | --- |
+| `/var/lib/sops-nix/key.txt` | Identidade age recuperada pelo operador | root:root, 0600 |
+| `/var/lib/sops-nix/ssh.yaml` | Documento SOPS com campo `ssh_private_key` | root:root, 0600 |
 
-Guarde o conteúdo completo em uma nota segura no Bitwarden. Não cole a identidade
-no chat nem a adicione ao Git. Ao copiar, não deixe o conteúdo em histórico de
-clipboard. Confira o item em outro aparelho antes de considerar a recuperação
-pronta. O assistente não acessa o cofre nem confirma essa cópia por você.
+O diretório é root:root, 0700. O preflight recusa arquivos ausentes, vazios,
+symlinks ou permissões diferentes. Não há identidade gerada como fallback.
+`sops.validateSopsFiles = false` evita copiar o ciphertext ao store durante a
+avaliação. O manifest ainda é validado no build. A validação e a decifragem do
+documento externo ocorrem na ativação pelo `sops-install-secrets` real.
+Esse limite não transforma um build aprovado em prova de recuperação da chave.
 
-Preserve a identidade local até concluir a migração e verificar a recuperação.
-O ciphertext não recupera a chave SSH sem essa identidade. A chave SSH original
-em `~/.ssh/id_ed25519` foi preservada, sem alteração da passphrase.
+O ciphertext e a regra privada de edição ficam em armazenamento privado separado.
+Não os copie para este checkout, para logs ou para argumentos de comandos Nix.
+A identidade age nunca pertence ao Git, mesmo em repositório privado.
 
-## Preparar o primeiro boot
+## Preparar uma instalação autorizada
 
-Recupere a identidade age do Bitwarden no ambiente de instalação. Mantenha o
-arquivo fora do repositório. Como root, depois de montar os volumes do novo
-NixOS, copie a identidade para o sistema de destino.
+Antes de substituir qualquer sistema, confirme em outro aparelho a recuperação
+da identidade age e do ciphertext correto. No instalador, depois de montar o
+sistema de destino, provisione os dois arquivos nos caminhos acima sob `/mnt`.
+Use arquivos de origem privados e confira os donos e permissões sem imprimir seu
+conteúdo. A instalação também exige senha da conta e material de recuperação do
+outro sistema operacional. Siga [o guia de instalação](../docs/instalacao.md).
 
-```sh
-install -d -m 0700 -o root -g root /mnt/var/lib/sops-nix
-install -m 0600 -o root -g root /caminho/seguro/key.txt /mnt/var/lib/sops-nix/key.txt
-```
+O Home Manager depende da unidade SOPS. A chave decifrada aparece em
+`/run/secrets/rinyaresu-ssh-key`, com dono `rinyaresu` e modo 0600.
+`~/.ssh/id_ed25519` é um symlink para esse arquivo. Um arquivo regular existente
+não é substituído silenciosamente. `~/.ssh` permanece com modo 0700.
 
-Substitua `/caminho/seguro/key.txt` pelo arquivo recuperado. Esses comandos são
-para o instalador com o destino montado, não para executar no CachyOS agora.
-Não coloque a identidade no flake, em argumentos Nix ou em uma derivação.
+A chave mantém sua passphrase. GNOME Keyring, agente SSH e Bitwarden têm
+responsabilidades distintas. O agente SSH pede a passphrase graficamente e
+reutiliza a chave carregada. Bitwarden é recuperação, não um agente SSH.
 
-No sistema instalado, sops-nix usa `/var/lib/sops-nix/key.txt`. Ele não gera uma
-identidade alternativa nem usa chaves SSH como fallback. Sem a identidade, o
-provisionamento falha em vez de substituir a chave.
+## Editar e recuperar
 
-O SSD não usa LUKS. Quem puder ler esse disco offline poderá acessar a identidade
-age instalada e decifrar o segredo. SOPS protege o conteúdo no Git e no Nix store,
-não criptografa o disco inteiro.
+Edite o ciphertext somente na cópia privada, usando SOPS e a regra correspondente.
+Use um editor sem backups ou swap com conteúdo decifrado. Para atualizar o arquivo
+runtime, confira a origem e preserve o ciphertext anterior antes de substituí-lo.
+Aplique mudanças somente com autorização operacional.
 
-## Usar a chave provisionada
-
-No primeiro boot, sops-nix decifra a chave em runtime. Home Manager cria
-`~/.ssh/id_ed25519` como symlink para `/run/secrets/rinyaresu-ssh-key`.
-O alvo tem dono `rinyaresu` e permissão 0600. O diretório `~/.ssh` usa 0700.
-Um arquivo regular já existente nesse destino não é sobrescrito.
-
-O ssh-agent nativo não carrega a chave automaticamente. Execute `ssh-add` e digite
-a passphrase quando solicitada. Não remova a passphrase nem ative agent forwarding
-por conveniência.
-
-## Editar o segredo depois da instalação
-
-O host `desktop` inclui o comando `sops`. Com a identidade acessível, execute da
-raiz do repositório.
-
-```sh
-EDITOR='nvim -n -i NONE -u NONE' \
-  SOPS_AGE_KEY_FILE=/caminho/seguro/key.txt sops secrets/ssh.yaml
-```
-
-O editor recebe o conteúdo decifrado. Use um editor que não deixe backups ou
-arquivos de swap com esse conteúdo. Fora da edição, somente `ssh.yaml` cifrado e
-`.sops.yaml` com o destinatário público pertencem ao repositório.
+Sem criptografia do SSD, alguém com leitura física offline pode obter a
+identidade age instalada e decifrar o documento. SOPS protege a cópia cifrada,
+não o disco instalado. Gerações Nix e snapshots locais não substituem a recuperação
+externa da identidade.

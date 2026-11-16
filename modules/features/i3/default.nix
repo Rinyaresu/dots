@@ -16,6 +16,8 @@ in
 {
   flake.modules.nixos.i3 = { pkgs, ... }: {
     key = "${__curPos.file}#nixos.i3";
+    services.gnome.gnome-keyring.enable = true;
+    services.gnome.gcr-ssh-agent.enable = false;
     services.xserver = {
       enable = true;
       windowManager.i3.enable = true;
@@ -23,14 +25,24 @@ in
         enable = true;
         generateScript = true;
         extraCommands = ''
-          trap '${pkgs.systemd}/bin/systemctl --user stop --job-mode=replace-irreversibly graphical-session.target graphical-session-pre.target; ${pkgs.systemd}/bin/systemctl --user unset-environment DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE' EXIT
+          cleanup() {
+            ${pkgs.systemd}/bin/systemctl --user stop graphical-session.target graphical-session-pre.target
+            DISPLAY= WAYLAND_DISPLAY= NIRI_SOCKET= XAUTHORITY= XDG_CURRENT_DESKTOP= XDG_SESSION_DESKTOP= XDG_SESSION_TYPE= \
+              ${pkgs.dbus}/bin/dbus-update-activation-environment DISPLAY WAYLAND_DISPLAY NIRI_SOCKET XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
+            ${pkgs.systemd}/bin/systemctl --user unset-environment DISPLAY WAYLAND_DISPLAY NIRI_SOCKET XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
+          }
+          trap cleanup EXIT
           trap 'exit' TERM INT
           export XDG_CURRENT_DESKTOP=i3
           export XDG_SESSION_DESKTOP=i3
           export XDG_SESSION_TYPE=x11
-          systemctl --user import-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
+          unset WAYLAND_DISPLAY NIRI_SOCKET
+          ${pkgs.systemd}/bin/systemctl --user unset-environment WAYLAND_DISPLAY NIRI_SOCKET
+          WAYLAND_DISPLAY= NIRI_SOCKET= ${pkgs.dbus}/bin/dbus-update-activation-environment WAYLAND_DISPLAY NIRI_SOCKET
+          ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd DISPLAY XAUTHORITY XDG_SESSION_ID XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
           ${pkgs.xset}/bin/xset s noblank
-          ${pkgs.xset}/bin/xset -dpms
+          ${pkgs.xset}/bin/xset +dpms
+          ${pkgs.xset}/bin/xset dpms 0 0 900
           ${pkgs.xsetroot}/bin/xsetroot -solid '#faf4ed'
         '';
       };
@@ -53,13 +65,16 @@ in
           message = "The i3 home configuration requires i3 on this host.";
         }
       ];
+      dconf.settings."org/gnome/desktop/interface".color-scheme = "prefer-light";
       xsession.windowManager.i3 = {
         enable = true;
         config = {
           modifier = "Mod4";
           terminal = "${pkgs.ghostty}/bin/ghostty";
           keybindings = lib.mkOptionDefault {
-            "Mod4+Shift+l" = "exec ${pkgs.systemd}/bin/loginctl lock-session";
+            "Mod4+Mod1+l" = "exec ${pkgs.systemd}/bin/loginctl lock-session";
+            "Mod4+Mod1+b" = "exec ${pkgs.setxkbmap}/bin/setxkbmap -layout br";
+            "Mod4+Mod1+u" = "exec ${pkgs.setxkbmap}/bin/setxkbmap -layout us -variant intl";
           };
         };
       };

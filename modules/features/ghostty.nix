@@ -4,7 +4,8 @@
     enable = true;
     settings = {
       theme = "Rose Pine Dawn";
-      font-family = "Iosevka Nerd Font";
+      font-family = "IosevkaTerm Nerd Font";
+      font-size = 15;
     };
   };
 }

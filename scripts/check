@@ -7,6 +7,9 @@ if (( $# > 1 )) || { (( $# == 1 )) && [[ $1 != --quick ]]; }; then
 fi
 
 cd "$(dirname "$0")/.."
+source=$(python3 -B scripts/export-source.py)
+cd "$source"
+printf 'Fonte explícita: %s\n' "$source"
 python3 -B -m unittest discover -s checks -p '*_test.py'
 
 flake="path:$PWD"
@@ -15,7 +18,7 @@ find flake.nix modules checks -type f -name '*.nix' -print0 |
     --no-write-lock-file "$flake#formatter.x86_64-linux" -- --check
 
 if (( $# == 1 )); then
-  printf 'Check rápido: avaliação sem executar os builders ou as VMs.\n'
+  printf 'Check rápido: formatter pode realizar ou baixar dependências; flake check não executa builders ou VMs.\n'
   set -- --no-build
 else
   printf 'Check completo: construir os checks e executar as VMs.\n'

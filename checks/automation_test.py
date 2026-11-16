@@ -16,26 +16,36 @@ class AutomationTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         for directory in ['scripts', '.githooks', 'checks', 'modules', 'bin']:
             (self.root / directory).mkdir()
-        for relative in ['scripts/check', '.githooks/pre-push']:
+        for relative in ['scripts/check', 'scripts/export-source.py', '.githooks/pre-push']:
             shutil.copy2(ROOT / relative, self.root / relative)
         (self.root / 'checks/fixture_test.py').write_text(
             'import unittest\nclass Fixture(unittest.TestCase):\n'
             '    def test_fixture(self):\n        self.assertTrue(True)\n')
         (self.root / 'flake.nix').write_text('{}\n')
+        (self.root / 'flake.lock').write_text('{}\n')
         (self.root / 'modules/with space.nix').write_text('{}\n')
+        (self.root / 'plan.md').write_text('private planning fixture\n')
+        (self.root / 'modules/backup.nix').write_text('private backup fixture\n')
+        (self.root / 'source-files.txt').write_text('\n'.join([
+            'flake.nix', 'flake.lock', 'scripts/check', 'scripts/export-source.py',
+            '.githooks/pre-push', 'checks/fixture_test.py',
+            'modules/with space.nix', 'source-files.txt']) + '\n')
         self.trace = self.root / 'trace.jsonl'
         nix = self.root / 'bin/nix'
         nix.write_text('''#!/usr/bin/env python3
 import json, os, sys
 with open(os.environ['TRACE'], 'a') as stream:
     stream.write(json.dumps({'cwd': os.getcwd(), 'args': sys.argv[1:],
+                             'files': sorted(str(p.relative_to(os.getcwd()))
+                                 for p in __import__('pathlib').Path.cwd().rglob('*')
+                                 if p.is_file()),
                              'git_dir': os.environ.get('GIT_DIR')}) + '\\n')
 stage = 'formatter' if 'run' in sys.argv else 'check'
 sys.exit(1 if os.environ.get('FAIL_STAGE') == stage else 0)
 ''')
         nix.chmod(0o755)
         self.env = dict(os.environ, PATH=f"{self.root / 'bin'}:{os.environ['PATH']}",
-                        TRACE=str(self.trace))
+                        TRACE=str(self.trace), XDG_STATE_HOME=str(self.root / 'state'))
 
     def run_check(self, *arguments, failure=''):
         return subprocess.run([str(self.root / 'scripts/check'), *arguments],
@@ -51,7 +61,13 @@ sys.exit(1 if os.environ.get('FAIL_STAGE') == stage else 0)
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stderr)
         formatter, check = self.calls()
-        self.assertEqual(formatter['cwd'], str(self.root))
+        self.assertNotEqual(formatter['cwd'], str(self.root))
+        self.assertTrue(Path(formatter['cwd']).parent.joinpath('manifest.json').is_file())
+        self.assertEqual(formatter['cwd'], check['cwd'])
+        for call in [formatter, check]:
+            self.assertNotIn('plan.md', call['files'])
+            self.assertNotIn('modules/backup.nix', call['files'])
+            self.assertIn('modules/with space.nix', call['files'])
         self.assertIn('modules/with space.nix', formatter['args'])
         self.assertIn('--check', formatter['args'])
         self.assertIn('check', check['args'])

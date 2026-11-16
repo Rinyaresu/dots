@@ -10,6 +10,8 @@ in
   flake.modules.nixos.host-desktop.imports = [
     nixos.nix-settings
     nixos.networking
+    nixos.tailscale
+    nixos.home-snapshots
     nixos.locale
     nixos.sudo
     nixos.rinyaresu

@@ -76,7 +76,7 @@ let
     separate-shells = !alice.programs.fish.enable && bob.programs.fish.enable;
     overlapping-imports =
       alice.programs.ghostty.settings.theme == [ "Rose Pine Dawn" ]
-      && alice.programs.ghostty.settings.font-family == [ "Iosevka Nerd Font" ];
+      && alice.programs.ghostty.settings.font-family == [ "IosevkaTerm Nerd Font" ];
     repeated-pi-publication =
       builtins.length (
         builtins.filter (
@@ -88,7 +88,8 @@ let
         (
           c:
           c.home-manager.users.rinyaresu.programs.ghostty.settings.theme == [ "Rose Pine Dawn" ]
-          && c.home-manager.users.rinyaresu.programs.ghostty.settings.font-family == [ "Iosevka Nerd Font" ]
+          &&
+            c.home-manager.users.rinyaresu.programs.ghostty.settings.font-family == [ "IosevkaTerm Nerd Font" ]
         )
         [
           desktop
@@ -156,6 +157,36 @@ let
       desktop.sops.secrets.rinyaresu-ssh-key.owner == "rinyaresu"
       && desktop.sops.secrets.rinyaresu-ssh-key.mode == "0600"
       && builtins.elem "sops-install-secrets.service" desktop.systemd.services.home-manager-rinyaresu.requires;
+    desktop-runtime-secret-input =
+      !desktop.sops.validateSopsFiles
+      && desktop.sops.secrets.rinyaresu-ssh-key.sopsFile == "/var/lib/sops-nix/ssh.yaml"
+      && !(builtins.isPath desktop.sops.secrets.rinyaresu-ssh-key.sopsFile)
+      && desktop.sops.age.keyFile == "/var/lib/sops-nix/key.txt"
+      && !desktop.sops.age.generateKey;
+    desktop-memory-and-usb =
+      desktop.zramSwap.memoryPercent == 100
+      && desktop.zramSwap.algorithm == "zstd"
+      && desktop.swapDevices == [ ]
+      && builtins.elem "usbcore.autosuspend=-1" desktop.boot.kernelParams;
+    desktop-applications =
+      lib.count (
+        package: (package.pname or "") == "vscode"
+      ) desktop.home-manager.users.rinyaresu.home.packages == 1
+      &&
+        builtins.all
+          (
+            package:
+            builtins.elem (toString package) (map toString desktop.home-manager.users.rinyaresu.home.packages)
+          )
+          (
+            with hosts.desktop.pkgs;
+            [
+              obsidian
+              anki
+              dbeaver-bin
+              bitwarden-desktop
+            ]
+          );
     lab-no-personal-state =
       lab.sops.secrets == { }
       && !(lab.home-manager.users.rinyaresu.systemd.user.services ? pi-config-restore);
@@ -182,9 +213,9 @@ let
       && ordis.networking.networkmanager.enable
       && ordis.security.sudo.wheelNeedsPassword
       && ordis.users.users.ordis.uid == 1000;
-    tailscale-only-ordis =
+    tailscale-selected-hosts =
       ordis.services.tailscale.enable
-      && !desktop.services.tailscale.enable
+      && desktop.services.tailscale.enable
       && !lab.services.tailscale.enable;
     ordis-private-ssh =
       ordis.networking.firewall.enable
@@ -257,7 +288,11 @@ in
       mkdir -p "$TMPDIR/stubs"
       cat > "$TMPDIR/stubs/ssh-add" <<'EOF'
       #!${pkgs.runtimeShell}
-      exit 0
+      printf '256 SHA256:bootstrap-fixture fixture (ED25519)\n'
+      EOF
+      cat > "$TMPDIR/stubs/ssh-keygen" <<'EOF'
+      #!${pkgs.runtimeShell}
+      printf '256 SHA256:bootstrap-fixture fixture (ED25519)\n'
       EOF
       cat > "$TMPDIR/stubs/git" <<'EOF'
       #!${pkgs.runtimeShell}
@@ -295,10 +330,11 @@ in
         printf valid > "$destination/references/personal.md"
       fi
       EOF
-      chmod +x "$TMPDIR/stubs/ssh-add" "$TMPDIR/stubs/git"
+      chmod +x "$TMPDIR/stubs/ssh-add" "$TMPDIR/stubs/ssh-keygen" "$TMPDIR/stubs/git"
       substitute ${restoreScript} "$TMPDIR/restore" \
         --replace-fail '${pkgs.git}/bin/git' "$TMPDIR/stubs/git" \
-        --replace-fail '${pkgs.openssh}/bin/ssh-add' "$TMPDIR/stubs/ssh-add"
+        --replace-fail '${pkgs.openssh}/bin/ssh-add' "$TMPDIR/stubs/ssh-add" \
+        --replace-fail '${pkgs.openssh}/bin/ssh-keygen' "$TMPDIR/stubs/ssh-keygen"
       chmod +x "$TMPDIR/restore"
 
       export PATH="$TMPDIR/stubs:$PATH" RACE_HOME= RACE_PI= RACE_PI_LINK= FAIL_REPOSITORY= INVALID_RACE_HOME=0

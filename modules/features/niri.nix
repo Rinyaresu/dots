@@ -13,12 +13,38 @@
   flake.modules.homeManager.niri =
     { osConfig, pkgs, ... }:
     let
-      niriConfig = pkgs.writeText "niri-config.kdl" ''
+      sattyConfig = pkgs.writeText "satty-capture.toml" ''
+        [general]
+        early-exit = true
+        copy-command = "${pkgs.coreutils}/bin/true"
+        actions-on-enter = ["save-to-file"]
+        actions-on-right-click = ["save-to-file"]
+        actions-on-escape = ["exit"]
+        disable-notifications = true
+      '';
+      capture = pkgs.writeShellScriptBin "niri-screenshot" ''
+        set -euo pipefail
+        umask 077
+        work=$(${pkgs.coreutils}/bin/mktemp -d "''${XDG_RUNTIME_DIR:?}/niri-screenshot.XXXXXX")
+        trap '${pkgs.coreutils}/bin/rm -rf -- "$work"' EXIT
+        geometry=$(${pkgs.slurp}/bin/slurp) || exit 0
+        [[ -n "$geometry" ]] || exit 0
+        ${pkgs.grim}/bin/grim -g "$geometry" "$work/capture.png"
+        ${pkgs.satty}/bin/satty --config ${sattyConfig} \
+          --filename "$work/capture.png" --output-filename "$work/edited.png"
+        [[ -s "$work/edited.png" ]] || exit 0
+        directory="$HOME/Pictures/Screenshots"
+        ${pkgs.coreutils}/bin/mkdir -p "$directory"
+        destination=$(${pkgs.coreutils}/bin/mktemp "$directory/Screenshot-$(${pkgs.coreutils}/bin/date +%Y-%m-%d_%H-%M-%S)-XXXXXX.png")
+        ${pkgs.coreutils}/bin/cat "$work/edited.png" > "$destination"
+        ${pkgs.wl-clipboard}/bin/wl-copy --type image/png < "$destination"
+      '';
+      niriConfig = ''
         input {
             keyboard {
                 xkb {
-                    layout "us"
-                    variant "intl"
+                    layout "us,br"
+                    variant "intl,"
                 }
             }
         }
@@ -34,7 +60,9 @@
             Mod+D { spawn-sh "${pkgs.noctalia}/bin/noctalia msg panel-toggle launcher"; }
             Mod+C { spawn-sh "${pkgs.noctalia}/bin/noctalia msg panel-toggle clipboard"; }
             Super+Alt+L { spawn-sh "${pkgs.noctalia}/bin/noctalia msg session lock"; }
-            Mod+Q repeat=false { close-window; }
+            Mod+Shift+Q repeat=false { close-window; }
+            Mod+Alt+B hotkey-overlay-title="Brazilian keyboard" { switch-layout "1"; }
+            Mod+Alt+U hotkey-overlay-title="US international keyboard" { switch-layout "0"; }
             Mod+Shift+Slash { show-hotkey-overlay; }
             Mod+O repeat=false { toggle-overview; }
             Mod+Left { focus-column-left; }
@@ -54,19 +82,25 @@
             Mod+7 { focus-workspace 7; }
             Mod+8 { focus-workspace 8; }
             Mod+9 { focus-workspace 9; }
-            Mod+Ctrl+1 { move-column-to-workspace 1; }
-            Mod+Ctrl+2 { move-column-to-workspace 2; }
-            Mod+Ctrl+3 { move-column-to-workspace 3; }
-            Mod+Ctrl+4 { move-column-to-workspace 4; }
-            Mod+Ctrl+5 { move-column-to-workspace 5; }
-            Mod+Ctrl+6 { move-column-to-workspace 6; }
-            Mod+Ctrl+7 { move-column-to-workspace 7; }
-            Mod+Ctrl+8 { move-column-to-workspace 8; }
-            Mod+Ctrl+9 { move-column-to-workspace 9; }
+            Mod+Shift+1 { move-column-to-workspace 1; }
+            Mod+Shift+2 { move-column-to-workspace 2; }
+            Mod+Shift+3 { move-column-to-workspace 3; }
+            Mod+Shift+4 { move-column-to-workspace 4; }
+            Mod+Shift+5 { move-column-to-workspace 5; }
+            Mod+Shift+6 { move-column-to-workspace 6; }
+            Mod+Shift+7 { move-column-to-workspace 7; }
+            Mod+Shift+8 { move-column-to-workspace 8; }
+            Mod+Shift+9 { move-column-to-workspace 9; }
+            Mod+Shift+H { move-column-left; }
+            Mod+Shift+J { move-window-down; }
+            Mod+Shift+K { move-window-up; }
+            Mod+Shift+L { move-column-right; }
             Mod+R { switch-preset-column-width; }
-            Mod+F { maximize-column; }
-            Mod+V { toggle-window-floating; }
-            Print { screenshot; }
+            Mod+F { fullscreen-window; }
+            Mod+Shift+F { maximize-column; }
+            Mod+Shift+Space { toggle-window-floating; }
+            Print hotkey-overlay-title="Capture region, annotate in Satty, Enter saves and copies" { spawn "${capture}/bin/niri-screenshot"; }
+            Mod+Shift+Delete hotkey-overlay-title="Clear unpinned clipboard history" { spawn "${pkgs.noctalia}/bin/noctalia" "msg" "clipboard-clear"; }
             Ctrl+Print { screenshot-screen; }
             Alt+Print { screenshot-window; }
             Mod+Shift+E { quit; }
@@ -107,15 +141,42 @@
 
         [notification]
         enable_daemon = true
+        layer = "top"
+
+        [location]
+        auto_locate = false
+        custom_schedule = true
+        sunrise = "06:45"
+        sunset = "18:00"
+
+        [nightlight]
+        enabled = true
+        force = false
+        temperature_day = 5900
+        temperature_night = 2600
+
+        [idle]
+        pre_action_fade_seconds = 0
 
         [idle.behavior.lock]
         timeout = 600
         action = "lock"
         enabled = true
 
+        [idle.behavior.screen-off]
+        timeout = 900
+        action = "screen_off"
+        enabled = true
+
+        [idle.behavior.suspend]
+        enabled = false
+
         [lockscreen]
         enabled = true
         lock_before_suspend = true
+        blurred_desktop = false
+        allow_empty_password = false
+        fingerprint = false
       '';
     in
     {
@@ -131,9 +192,14 @@
           message = "The Noctalia encrypted-history preset requires GNOME Keyring Secret Service.";
         }
       ];
-      home.packages = [ pkgs.noctalia ];
+      home.packages = [
+        pkgs.noctalia
+        pkgs.satty
+        capture
+      ];
+      dconf.settings."org/gnome/desktop/interface".color-scheme = "prefer-light";
       xdg.configFile = {
-        "niri/config.kdl".source = niriConfig;
+        "niri/config.kdl".text = niriConfig;
         "noctalia/config.toml".source = noctaliaConfig;
       };
       systemd.user.services.noctalia = {

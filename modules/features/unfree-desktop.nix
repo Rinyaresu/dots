@@ -8,6 +8,8 @@
         "discord"
         "spotify"
         "stremio-linux-shell"
+        "obsidian"
+        "vscode"
       ];
   };
 }
