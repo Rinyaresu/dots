@@ -6,6 +6,11 @@
       theme = "Rose Pine Dawn";
       font-family = "IosevkaTerm Nerd Font";
       font-size = 15;
+      adjust-cell-height = 1;
+      cursor-style = "block";
+      cursor-style-blink = false;
+      window-padding-x = 4;
+      window-padding-y = 4;
     };
   };
 }

@@ -74,6 +74,12 @@ let
       alice.programs.ghostty.settings.font-family == [ "IosevkaTerm Nerd Font" ]
       && alice.programs.ghostty.settings.font-size == [ 15 ]
       && builtins.elem systemPkgs.nerd-fonts.iosevka-term system.fonts.packages;
+    terminal-legibility =
+      alice.programs.ghostty.settings.adjust-cell-height == [ 1 ]
+      && alice.programs.ghostty.settings.cursor-style == [ "block" ]
+      && alice.programs.ghostty.settings.cursor-style-blink == [ false ]
+      && alice.programs.ghostty.settings.window-padding-x == [ 4 ]
+      && alice.programs.ghostty.settings.window-padding-y == [ 4 ];
     i3-night-light =
       alice.services.redshift.enable
       && alice.services.redshift.temperature.day == 5900
@@ -134,6 +140,9 @@ in
       }
       ${pkgs.niri}/bin/niri validate --config ${
         config.flake.nixosConfigurations.lab.config.home-manager.users.rinyaresu.xdg.configFile."niri/config.kdl".source
+      }
+      ${pkgs.ghostty}/bin/ghostty +validate-config --config-file=${
+        alice.xdg.configFile."ghostty/config".source
       }
       ${pkgs.noctalia}/bin/noctalia config validate ${
         alice.xdg.configFile."noctalia/config.toml".source
