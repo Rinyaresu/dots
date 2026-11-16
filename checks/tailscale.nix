@@ -28,6 +28,8 @@
       ];
       settings.dns.upstreams = lib.mkForce [ ];
     };
+    # A credential-less Type=simple start can launch and interrupt gravity setup.
+    systemd.services.pihole-ftl.wantedBy = lib.mkForce [ ];
     environment.systemPackages = [
       pkgs.python3
       pkgs.dig
@@ -121,9 +123,16 @@
     machine.fail("ip netns exec overlay nc -6 -w 2 -z fd7a:115c:a1e0::1 23456")
 
     with subtest("Pi-hole and Tailscale coexist without widening DNS access"):
+        machine.fail("systemctl is-active --quiet pihole-ftl.service")
+        machine.succeed("test ! -e /var/lib/pihole/gravity.db")
         machine.succeed("python3 ${./pihole-provision.py}")
-        machine.succeed("systemctl reset-failed pihole-ftl pihole-ftl-setup; systemctl restart pihole-ftl")
+        machine.succeed("systemctl start pihole-ftl")
         machine.wait_for_unit("pihole-ftl.service")
+        try:
+            machine.wait_until_succeeds("test $(systemctl show pihole-ftl-setup.service -p ExecMainStartTimestampMonotonic --value) -gt 0 && test $(systemctl show pihole-ftl-setup.service -p ActiveState --value) = inactive && test $(systemctl show pihole-ftl-setup.service -p Result --value) = success", timeout=60)
+        except Exception:
+            print(machine.execute("systemctl show pihole-ftl-setup.service -p ExecMainStartTimestampMonotonic -p ActiveState -p Result; journalctl -u pihole-ftl-setup.service --no-pager"))
+            raise
         def lan_dns():
             for transport in ["", "+tcp"]:
                 machine.wait_until_succeeds(f"ip netns exec lan dig @192.168.1.196 ads.fixture.example.com +short +time=1 +tries=1 {transport} | grep -Fx 0.0.0.0", timeout=60)
