@@ -1,72 +1,87 @@
 # Usar o desktop
 
-Faça login com senha no console. Execute `startx` para i3 ou `niri-session` para
-niri. Encerre a sessão gráfica antes de iniciar a outra. As duas compartilham o
-mesmo usuário e os serviços nativos de sessão do systemd.
+Faça login com senha no console e execute `niri-session`. Niri com Noctalia é a
+sessão principal. i3 é a alternativa de recuperação, iniciada por `startx`.
+Encerre uma sessão antes de iniciar a outra. Não há display manager ou autologin.
 
-A configuração não abre um desktop sozinha. i3 é a sessão de confiança e niri
-com Noctalia é a sessão experimental. Nenhuma delas importa a configuração do
-CachyOS.
+O desktop usa layout de monitores e modos próprios em `modules/hosts/desktop/home.nix`.
+Esses conectores e frequências dependem de validação no hardware. A capacidade
+compartilhada niri não impõe esse hardware ao lab.
 
-## Usar os atalhos
+## Atalhos
 
-Super é a tecla Windows do teclado.
+Super é a tecla Windows.
 
 | Atalho | Ação |
 | --- | --- |
-| Super+Enter | Abrir Ghostty |
-| Super+D | Abrir o launcher da sessão |
-| Super+C | Mostrar o histórico de clipboard |
-| Super+Shift+L no i3, Super+Alt+L no niri | Bloquear a tela |
-| Super+Shift+Q no i3, Super+Q no niri | Fechar a janela |
-| Super+1 até Super+9 | Selecionar workspace numérico |
-| Super+Shift+número no i3, Super+Ctrl+número no niri | Mover para o workspace correspondente |
-| Print | Selecionar uma captura de tela |
+| Super+Enter | Abrir Ghostty, com autoattach Herdr em terminal gráfico |
+| Super+D | Abrir launcher |
+| Super+C | Abrir histórico de clipboard |
+| Super+Shift+Q | Fechar janela |
+| Super+Alt+B | Teclado brasileiro |
+| Super+Alt+U | Teclado US internacional |
+| Super+1 até Super+9 | Selecionar workspace |
+| Super+Shift+número | Mover coluna niri ou janela i3 ao workspace |
+| Print | Capturar região e anotar |
+| Super+Shift+Delete | Limpar histórico não fixado no niri, histórico CopyQ no i3 |
+| Super+Shift+E | Encerrar sessão gráfica, sem desligar o PC |
 
-No i3, Super+Shift+Delete limpa o histórico CopyQ. No niri, use a ação nativa de
-limpeza no painel de clipboard. Os modelos de workspace dos dois programas são
-diferentes. O niri usa workspaces dinâmicos e colunas. Super+O abre seu overview.
-Super+Shift+/ mostra a ajuda de atalhos. Super+0 seleciona o workspace 10 apenas
-no i3. O niri não tenta reproduzir todos os atalhos do i3.
+No niri, Super+H e Super+L focam colunas. Super+J e Super+K focam janelas da
+coluna. Acrescente Shift para mover. Super+R muda largura, Super+F alterna tela
+cheia e Super+Shift+F maximiza coluna. Super+Shift+Espaço alterna janela flutuante.
+Super+O abre overview e Super+Shift+/ mostra ajuda.
+Essas ações respeitam o modelo niri, não reproduzem a árvore de containers i3.
 
-Super+Shift+E pede o encerramento da sessão pelo mecanismo nativo de cada
-programa. O objetivo é voltar ao console, não desligar o PC.
+O teclado padrão é US internacional. O console mantém configuração própria a
+validar, inclusive acentos e digitação de senha. Atalhos gráficos não mudam o
+layout do console.
 
-## Bloquear e suspender
+## Bloqueio e inatividade
 
-A tela bloqueia após dez minutos de inatividade e antes da suspensão. O bloqueio
-manual usa Super+Shift+L no i3 e Super+Alt+L no niri.
-Digite a senha do usuário para desbloquear.
-Não configurei suspensão ou desligamento dos monitores por inatividade.
-Hibernação e suspensão híbrida estão desativadas.
+A tela bloqueia após dez minutos e antes de suspender. Monitores apagam após
+quinze minutos, sem suspender o computador. Não há hibernação, suspensão híbrida
+ou suspensão automática por inatividade.
 
-O i3 usa i3lock, xss-lock e Dunst. O niri usa o bloqueio e as notificações de
-Noctalia. O guia não substitui a verificação da suspensão e retomada no hardware.
+Super+Alt+L bloqueia tanto no niri quanto no i3.
+Notificações não devem aparecer na tela bloqueada. Aplicativos, agentes de
+terminal e acesso remoto devem continuar funcionando enquanto o PC está acordado.
+Valide bloqueio real, retomada, KVM, monitores e notificações nas duas sessões.
+A declaração não comprova esses efeitos físicos.
 
-## Escolher o destino de uma captura
+## Captura com edição
 
-No i3, Print abre Flameshot. Selecione a área e use a ação de copiar ou salvar.
-Os botões de upload não fazem parte da configuração.
+No niri, Print seleciona uma região por Slurp, captura com Grim e abre Satty.
+Enter no editor salva o resultado em `~/Pictures/Screenshots` e copia a imagem
+editada. Cancelar a seleção ou fechar sem exportar não cria arquivo final nem
+substitui o clipboard. Arquivos intermediários ficam no diretório runtime privado.
+Ctrl+Print e Alt+Print continuam usando capturas nativas de monitor e janela.
+No i3, Print usa Flameshot como alternativa.
 
-No niri, Print abre a seleção nativa. Depois de selecionar, use Ctrl+C para
-copiar sem gravar em disco. Use Espaço ou Enter para salvar. O diretório
-configurado é `~/Pictures/Screenshots`. Ctrl+Print captura a tela inteira e
-Alt+Print captura a janela. Não há upload automático.
+Confira a imagem salva e cole-a em outro aplicativo para validar o caminho
+completo. Testes com ferramentas simuladas provam o encadeamento e o cancelamento,
+mas não comprovam pixels ou integração gráfica real.
 
-## Entender o histórico de clipboard
+## Clipboard, aparência e áudio
 
-Em uma conta nova, CopyQ recebe uma configuração inicial com limite de cem
-entradas de texto e exclusão de imagens do histórico. Esse arquivo é mutável
-para permitir ajustes pelo próprio CopyQ. Se já existir uma configuração do
-programa no home, ela é preservada e precisa ser revisada. Um rebuild não
-reescreve essas preferências.
-Noctalia mantém texto e imagens no niri. Seu limite de cem entradas não inclui
-os itens fixados.
+Noctalia mantém texto e imagens, com cem entradas e Secret Service para
+persistência cifrada. CopyQ no i3 inicia com cem entradas de texto, sem imagens.
+Uma configuração CopyQ já existente é preservada e precisa de revisão.
+CopyQ não cifra seu histórico em repouso. Bloquear a tela não apaga o histórico.
+Evite copiar segredos. Não há sincronização externa configurada.
 
-O histórico CopyQ não tem criptografia em repouso. Noctalia depende do Secret
-Service desbloqueado para persistência cifrada. GNOME Keyring fornece esse
-serviço e não substitui o ssh-agent. A senha de login da conta e a senha do
-keyring precisam continuar compatíveis para o desbloqueio por PAM.
+GNOME Keyring tenta desbloquear o cofre de sessão com a senha de login.
+A senha do keyring precisa corresponder. O primeiro uso pode pedir desbloqueio.
+Isso não desbloqueia Bitwarden nem remove a passphrase SSH.
 
-Não configurei sincronização externa do clipboard. Evite copiar segredos para
-um histórico persistente. A tela de bloqueio não apaga o histórico armazenado.
+A base visual é clara Rosé Pine Dawn, sem alternância automática para escuro.
+Ghostty usa IosevkaTerm Nerd Font tamanho 15. Decorações e transparência não são
+cópias cegas de opções X11. Aplicativos podem manter preferências próprias.
+
+A luz noturna usa Noctalia no niri e Redshift no i3, com 5900 K de dia e 2600 K
+à noite. As transições graduais diferem entre implementações.
+Use a interface para escolher dispositivos PipeWire e WirePlumber.
+
+Discord inicia ao entrar na sessão. Não há autostart dos demais aplicativos
+pessoais. Firefox é padrão, Chrome é secundário. Compartilhamento em Discord,
+OBS e Meet exige testes separados de imagem e áudio recebidos ou gravados.
+Abertura do seletor de portal não é prova de compartilhamento bem-sucedido.

@@ -42,8 +42,10 @@ para completar pares. Compartilhar o nome não ativa a outra classe.
 
 Dependências da mesma classe usam imports nativos. i3 e niri importam Ghostty na
 parte HM. Herdr e os provedores importam Fish. O bootstrap pessoal do Pi importa
-Pi em HM e ssh-agent em NixOS. A parte HM verifica agente e chave conhecida do GitHub.
-Esses testes não provam que uma chave foi carregada ou que o clone privado funcionará.
+Pi em HM e ssh-agent em NixOS. A parte HM verifica agente, askpass e chave conhecida
+do GitHub. O serviço espera o socket do agente nativo, importa o ambiente gráfico
+da sessão e solicita desbloqueio antes do clone não interativo. Fixtures cobrem
+agente ausente, vazio, cancelamento e desbloqueio posterior, sem autenticar GitHub.
 O preset Noctalia usa GNOME Keyring como Secret Service e verifica essa opção.
 Outros provedores precisam de adaptação e validação próprias. A asserção não prova
 que o keyring estará desbloqueado na sessão.
@@ -185,9 +187,13 @@ Hardware, dispositivos, mounts, boot e a senha pública do laboratório não sae
 máquina a que pertencem. Políticas de sessão e memória do desktop não vão ao Ordis.
 
 SOPS genérico conhece somente a integração e a localização da identidade age.
-`modules/users/rinyaresu/ssh.nix` possui o ciphertext pessoal, dono, permissões,
-diretório SSH, dependência da unidade HM e link. Somente desktop seleciona suas
-duas partes. Lab mantém a infraestrutura SOPS sem segredos pessoais. Ordis não a importa.
+`modules/users/rinyaresu/ssh.nix` seleciona o ciphertext público `secrets/ssh.yaml`
+e a identidade age externa, dono, permissões, diretório SSH, dependência HM e link.
+O build valida o documento cifrado sem descriptografá-lo. Ciphertext e destinatários
+podem entrar no store. A identidade age e a chave SSH nunca são entradas de build.
+SOPS descriptografa por serviço systemd no sistema iniciado, antes de HM.
+Somente desktop seleciona as duas partes. Lab mantém a infraestrutura SOPS sem
+segredos pessoais. Ordis não a importa. Veja [o contrato](../secrets/README.md).
 O bootstrap privado Pi também pertence à pasta do usuário e só desktop o seleciona.
 
 ## Verificação dos contratos
@@ -220,7 +226,8 @@ fora da descoberta em `checks/pihole.nix`. Veja [operação e aceitação](pihol
 Os comandos de formatação, check e build estão no [AGENTS.md](../AGENTS.md).
 
 `nixos.tailscale` publica o cliente privado sem abrir portas ou confiar na interface.
-Somente Ordis o seleciona; sua raiz define as exceções SSH da LAN e do overlay.
+Desktop e Ordis o selecionam; cada raiz define seu próprio acesso SSH. A exceção
+LAN do servidor não é importada pelo desktop. Lab continua sem essa seleção.
 O módulo usa a configuração de daemon suportada pelo pacote fixado, sem credenciais
 no store, e mantém a identidade no StateDirectory upstream. `checks.tailscale`
 acrescenta uma VM com ingress simulado e preferências reais antes do login.
