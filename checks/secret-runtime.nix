@@ -5,7 +5,7 @@
 }:
 pkgs.testers.runNixOSTest {
   name = "secret-runtime";
-  nodes.machine = {
+  nodes.machine = { config, ... }: {
     imports = [
       nixos.home-manager
       nixos.rinyaresu-ssh
@@ -23,6 +23,11 @@ pkgs.testers.runNixOSTest {
     home-manager.users.rinyaresu = {
       imports = [ homeManager.rinyaresu-ssh ];
       home.stateVersion = "26.05";
+    };
+    environment.etc = {
+      "secret-runtime-manifest.json".source = config.system.build.sops-nix-manifest;
+      "secret-runtime-activation".source = config.home-manager.users.rinyaresu.home.activationPackage;
+      "secret-runtime-source".source = ../.;
     };
     environment.systemPackages = [
       pkgs.age

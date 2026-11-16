@@ -81,7 +81,7 @@ Esse fragmento não substitui hardware, filesystem raiz ou a saída do host.
 - `modules/users/` contém identidade e integrações pessoais. A conta e o Git de rinyaresu, seu SSH cifrado e seu bootstrap Pi ficam juntos.
 - `modules/hosts/` contém seleção, hardware, boot, contas particulares e versões de estado de cada máquina.
 - `modules/nix/` contém a ponte Home Manager e os checks. `checks/modules/` contém fixtures usadas somente pelos testes, fora da descoberta de funcionalidades.
-- `secrets/` documenta o contrato de provisionamento externo. Ciphertext pessoal, identidades age, chaves privadas e perfis VPN ficam fora deste repositório e da fonte Nix. O módulo pessoal usa caminhos de runtime e falha se os insumos não forem provisionados.
+- `secrets/ssh.yaml` é o único ciphertext pessoal revisado permitido na fonte pública e no store. Identidades age, chaves privadas, tokens e perfis VPN permanecem externos. Ao mudar esse contrato, ajuste juntos o módulo SSH, checks de build e runtime, exportador e [provisionamento](secrets/README.md).
 
 Não recrie `base`, `gui`, `development`, matching por nomes ou um registro paralelo
 de usuários. Não use aliases globais de usuário, módulos vazios ou opções `enable`
@@ -107,7 +107,7 @@ git diff --check
 
 Antes de executar Nix, revise `source-files.txt`. `scripts/check` exporta somente
 esses arquivos atuais e registra hashes fora da fonte. Inclua novos consumidores
-na lista explícita. Não teste um HEAD antigo como prova de alterações locais.
+na lista explícita. A exceção SOPS não autoriza outros YAML ou arquivos privados. Não teste um HEAD antigo como prova de alterações locais.
 O modo rápido ainda executa formatter por `nix run`, que pode realizar ou baixar
 dependências. O `flake check --no-build` posterior não executa builders ou VMs.
 Documentação privada e relatórios ficam fora do checkout publicável.

@@ -14,7 +14,7 @@ class AutomationTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix='nix-check-')
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        for directory in ['scripts', '.githooks', 'checks', 'modules', 'bin']:
+        for directory in ['scripts', '.githooks', 'checks', 'modules', 'secrets', 'bin']:
             (self.root / directory).mkdir()
         for relative in ['scripts/check', 'scripts/export-source.py', '.githooks/pre-push']:
             shutil.copy2(ROOT / relative, self.root / relative)
@@ -26,10 +26,15 @@ class AutomationTests(unittest.TestCase):
         (self.root / 'modules/with space.nix').write_text('{}\n')
         (self.root / 'plan.md').write_text('private planning fixture\n')
         (self.root / 'modules/backup.nix').write_text('private backup fixture\n')
+        (self.root / 'secrets/ssh.yaml').write_text(
+            'ssh_private_key: ENC[AES256_GCM,data:Zml4dHVyZQ==,'
+            'iv:aXY=,tag:dGFn,type:str]\nsops:\n    version: fixture\n')
+        (self.root / 'secrets/other.yaml').write_text('private fixture\n')
+        (self.root / 'secrets/key.txt').write_text('private fixture\n')
         (self.root / 'source-files.txt').write_text('\n'.join([
             'flake.nix', 'flake.lock', 'scripts/check', 'scripts/export-source.py',
             '.githooks/pre-push', 'checks/fixture_test.py',
-            'modules/with space.nix', 'source-files.txt']) + '\n')
+            'modules/with space.nix', 'secrets/ssh.yaml', 'source-files.txt']) + '\n')
         self.trace = self.root / 'trace.jsonl'
         nix = self.root / 'bin/nix'
         nix.write_text('''#!/usr/bin/env python3
@@ -68,6 +73,9 @@ sys.exit(1 if os.environ.get('FAIL_STAGE') == stage else 0)
             self.assertNotIn('plan.md', call['files'])
             self.assertNotIn('modules/backup.nix', call['files'])
             self.assertIn('modules/with space.nix', call['files'])
+            self.assertIn('secrets/ssh.yaml', call['files'])
+            self.assertNotIn('secrets/other.yaml', call['files'])
+            self.assertNotIn('secrets/key.txt', call['files'])
         self.assertIn('modules/with space.nix', formatter['args'])
         self.assertIn('--check', formatter['args'])
         self.assertIn('check', check['args'])
@@ -79,6 +87,21 @@ sys.exit(1 if os.environ.get('FAIL_STAGE') == stage else 0)
         result = self.run_check('--quick')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('--no-build', self.calls()[-1]['args'])
+
+    def test_plaintext_in_approved_path_stops_before_nix(self):
+        (self.root / 'secrets/ssh.yaml').write_text('ssh_private_key: plaintext-fixture\n')
+        result = self.run_check('--quick')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('SOPS ciphertext envelope', result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_unapproved_yaml_stops_before_nix(self):
+        with (self.root / 'source-files.txt').open('a') as stream:
+            stream.write('secrets/other.yaml\n')
+        result = self.run_check('--quick')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Path outside build inputs', result.stderr)
+        self.assertEqual(self.calls(), [])
 
     def test_invalid_arguments_do_not_run_nix(self):
         for arguments in [('--typo',), ('',), ('--quick', '--quick')]:

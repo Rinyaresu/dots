@@ -187,11 +187,13 @@ Hardware, dispositivos, mounts, boot e a senha pública do laboratório não sae
 máquina a que pertencem. Políticas de sessão e memória do desktop não vão ao Ordis.
 
 SOPS genérico conhece somente a integração e a localização da identidade age.
-`modules/users/rinyaresu/ssh.nix` possui caminhos de runtime do ciphertext e da
-identidade, dono, permissões, diretório SSH, dependência da unidade HM e link.
-O ciphertext não pertence à fonte pública. A validação de manifest ocorre no build;
-a leitura e decifragem do arquivo externo ocorrem na ativação. Somente desktop seleciona suas
-duas partes. Lab mantém a infraestrutura SOPS sem segredos pessoais. Ordis não a importa.
+`modules/users/rinyaresu/ssh.nix` seleciona o ciphertext público `secrets/ssh.yaml`
+e a identidade age externa, dono, permissões, diretório SSH, dependência HM e link.
+O build valida o documento cifrado sem descriptografá-lo. Ciphertext e destinatários
+podem entrar no store. A identidade age e a chave SSH nunca são entradas de build.
+SOPS descriptografa por serviço systemd no sistema iniciado, antes de HM.
+Somente desktop seleciona as duas partes. Lab mantém a infraestrutura SOPS sem
+segredos pessoais. Ordis não a importa. Veja [o contrato](../secrets/README.md).
 O bootstrap privado Pi também pertence à pasta do usuário e só desktop o seleciona.
 
 ## Verificação dos contratos

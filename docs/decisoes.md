@@ -33,8 +33,8 @@ existente antes da instalação. Windows e seu disco devem permanecer intactos.
 A chave SSH mantém passphrase. Um agente OpenSSH atende a sessão, Herdr e bootstrap.
 O primeiro uso pede desbloqueio gráfico. Bloqueio de tela não descarrega a chave.
 GNOME Keyring atende Secret Service, separado de SSH e Bitwarden.
-SOPS recebe identidade age e ciphertext por caminhos externos em runtime.
-Avaliação e build não consomem o material pessoal.
+SOPS usa ciphertext público revisado e identidade age externa em runtime.
+Avaliação e build podem consumir ciphertext, mas não a identidade ou chave privada.
 
 SSH de entrada usa o overlay Tailscale e chave pública. A recuperação LAN limitada
 a um cliente depende de identificação estável, ainda pendente. DNS permanece da

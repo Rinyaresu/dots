@@ -26,8 +26,8 @@ nix --extra-experimental-features 'nix-command flakes' build --no-link --no-writ
 
 `scripts/check` exporta somente os arquivos enumerados em `source-files.txt`.
 A exportação usa os bytes atuais, inclusive alterações ainda não commitadas.
-Documentação, arquivos ignorados, histórico Git e ciphertext pessoal não entram
-nessa exportação.
+Documentação, arquivos ignorados e histórico Git não entram nessa exportação.
+O único documento SOPS permitido é `secrets/ssh.yaml`, cifrado e revisado.
 Revise a lista ao acrescentar arquivos consumidos pelo flake ou pelos testes.
 O exportador recusa caminhos privados, travessia de diretórios e symlinks.
 
@@ -54,13 +54,16 @@ atual, não cada ref enviada, e não substitui o CI.
 - [Ambientes por projeto e terminal](docs/desenvolvimento.md).
 - [Serviços locais e acesso remoto](docs/servicos.md).
 - [Instalação e limites de recuperação](docs/instalacao.md).
-- [Insumos privados de provisionamento](secrets/README.md).
+- [Provisionamento SOPS e recuperação](secrets/README.md).
+- [Bootstrap de uma máquina limpa](docs/bootstrap.md).
 - [Composição e contratos](docs/estrutura.md).
 - [Servidor](docs/ordis.md), [Pi-hole](docs/pihole.md) e [Tailscale](docs/tailscale.md).
 
 A avaliação e o build não dependem de um checkout Home, agente SSH pessoal ou
-acesso à tailnet. A ativação do desktop exige insumos privados externos para
-SOPS. A ausência desses insumos falha, em vez de gerar uma chave substituta.
+acesso à tailnet. O ciphertext SOPS acompanha a fonte pública e pode entrar no
+store. A identidade age permanece externa. Sua ausência impede SOPS e Home
+Manager, em vez de gerar uma chave substituta. A chave SSH só é descriptografada
+em runtime e mantém sua passphrase.
 
 Atualizações e ativações são manuais. A política semanal de retenção está
 preparada, mas permanece desabilitada até validar a migração e a continuidade dos

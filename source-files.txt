@@ -1,5 +1,7 @@
 .githooks/pre-push
 checks/automation_test.py
+checks/bootstrap-runtime.nix
+checks/bootstrap-runtime.py
 checks/bootstrap-session.py
 checks/desktop-access.nix
 checks/desktop-access.py
@@ -96,4 +98,5 @@ modules/users/rinyaresu/pi-bootstrap.nix
 modules/users/rinyaresu/ssh.nix
 scripts/check
 scripts/export-source.py
+secrets/ssh.yaml
 source-files.txt

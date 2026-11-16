@@ -13,7 +13,8 @@ repositório público.
 3. Comprove que o firmware aceita a mídia e o boot Linux com a política Secure Boot
    existente. A configuração Limine não assina o executável nem altera essa política.
    Se houver recusa, pare antes de mudar firmware ou chaves.
-4. Confira a recuperação age, ciphertext SOPS e BitLocker em outro aparelho.
+4. Confira a recuperação da identidade age e BitLocker em outro aparelho.
+   Preserve uma revisão pública conhecida com o ciphertext SOPS correspondente.
 5. Reidentifique os discos por modelo, serial e partições no instalador.
    Preserve integralmente o disco do Windows e sua EFI.
 6. Prepare rede, teclado de recuperação, console e acesso administrativo.
@@ -57,8 +58,10 @@ nix --extra-experimental-features 'nix-command flakes' build --no-link --no-writ
   "path:$source#nixosConfigurations.desktop.config.system.build.toplevel"
 ```
 
-Provisione a identidade age e o ciphertext em `/mnt/var/lib/sops-nix/`, conforme
-[o contrato SOPS](../secrets/README.md). Esses arquivos ficam fora da fonte.
+Provisione somente a identidade age em `/mnt/var/lib/sops-nix/key.txt`, root:root,
+0600, em diretório root:root 0700, conforme [o contrato SOPS](../secrets/README.md).
+O ciphertext `secrets/ssh.yaml` acompanha a fonte e o sistema construído.
+Não copie identidade age para o checkout, export ou store.
 Provisione também as chaves públicas verificadas dos clientes SSH no arquivo
 runtime descrito em [serviços](servicos.md). A ausência delas recusa login remoto.
 
@@ -71,14 +74,22 @@ nixos-install --option experimental-features 'nix-command flakes' \
 nixos-enter --root /mnt -c 'passwd rinyaresu'
 ```
 
+`nixos-enter` executa o script de ativação do target no chroot antes do comando.
+Isso cria contas e configuração, mas não comprova o serviço SOPS ou Home Manager.
+Este perfil usa SOPS por systemd. A descriptografia e HM dependente são verificadas
+no sistema iniciado. A instalação do bootloader usa `switch-to-configuration boot`,
+não um switch dos serviços do target. Confira erros de ativação, pois `nixos-enter`
+pode tolerá-los. Veja [as fases do bootstrap](bootstrap.md).
+
 Nenhuma senha de produção pertence ao flake. A senha pública do lab nunca deve
 ser usada no desktop. Não ative o perfil lab no disco físico.
 
 ## Validar o primeiro início
 
-Entre no console. Inicie `niri-session`. Use `startx` como alternativa i3 somente
-depois de encerrar a outra sessão. Confira rede e SSH por conexão nova, cadastro
-Tailscale como dispositivo novo, socket SSH compartilhado e bootstrap Home e Agent.
+No console, confira SOPS e Home Manager antes de depender da chave SSH.
+Inicie `niri-session`. Use `startx` como alternativa i3 somente depois de encerrar
+a outra sessão. Confira rede e SSH por conexão nova, cadastro Tailscale como
+dispositivo novo, socket SSH compartilhado e bootstrap Home e Agent.
 Não abra Pi antes de o bootstrap concluir ou de revisar os destinos já existentes.
 
 Valide monitores, escalas, teclado no console e nas duas sessões, áudio, USB e KVM,

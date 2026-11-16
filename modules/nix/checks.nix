@@ -157,12 +157,15 @@ let
       desktop.sops.secrets.rinyaresu-ssh-key.owner == "rinyaresu"
       && desktop.sops.secrets.rinyaresu-ssh-key.mode == "0600"
       && builtins.elem "sops-install-secrets.service" desktop.systemd.services.home-manager-rinyaresu.requires;
-    desktop-runtime-secret-input =
-      !desktop.sops.validateSopsFiles
-      && desktop.sops.secrets.rinyaresu-ssh-key.sopsFile == "/var/lib/sops-nix/ssh.yaml"
-      && !(builtins.isPath desktop.sops.secrets.rinyaresu-ssh-key.sopsFile)
+    desktop-public-ciphertext-runtime-identity =
+      desktop.sops.validateSopsFiles
+      && builtins.isPath desktop.sops.secrets.rinyaresu-ssh-key.sopsFile
+      && desktop.sops.secrets.rinyaresu-ssh-key.sopsFile == ../../secrets/ssh.yaml
       && desktop.sops.age.keyFile == "/var/lib/sops-nix/key.txt"
-      && !desktop.sops.age.generateKey;
+      && !(builtins.hasContext desktop.sops.age.keyFile)
+      && !desktop.sops.age.generateKey
+      && desktop.sops.age.sshKeyPaths == [ ]
+      && desktop.sops.gnupg.sshKeyPaths == [ ];
     desktop-memory-and-usb =
       desktop.zramSwap.memoryPercent == 100
       && desktop.zramSwap.algorithm == "zstd"
