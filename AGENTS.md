@@ -81,7 +81,7 @@ Esse fragmento não substitui hardware, filesystem raiz ou a saída do host.
 - `modules/users/` contém identidade e integrações pessoais. A conta e o Git de rinyaresu, seu SSH cifrado e seu bootstrap Pi ficam juntos.
 - `modules/hosts/` contém seleção, hardware, boot, contas particulares e versões de estado de cada máquina.
 - `modules/nix/` contém a ponte Home Manager e os checks. `checks/modules/` contém fixtures usadas somente pelos testes, fora da descoberta de funcionalidades.
-- `secrets/` contém somente ciphertext SOPS e instruções. Identidades age, chaves privadas e perfis VPN ficam fora do repositório e do Nix store.
+- `secrets/` documenta o contrato de provisionamento externo. Ciphertext pessoal, identidades age, chaves privadas e perfis VPN ficam fora deste repositório e da fonte Nix. O módulo pessoal usa caminhos de runtime e falha se os insumos não forem provisionados.
 
 Não recrie `base`, `gui`, `development`, matching por nomes ou um registro paralelo
 de usuários. Não use aliases globais de usuário, módulos vazios ou opções `enable`
@@ -95,14 +95,22 @@ Para uma capacidade isolada, avalie e construa os consumidores afetados.
 Em mudanças somente de documentação, confira os links e avalie exemplos alterados.
 
 ```sh
-nix flake check "path:$PWD" --no-write-lock-file
+./scripts/check --quick
+./scripts/check
+source=$(python3 -B scripts/export-source.py)
 nix build --no-link --no-write-lock-file \
-  "path:$PWD#nixosConfigurations.desktop.config.system.build.toplevel" \
-  "path:$PWD#nixosConfigurations.lab.config.system.build.toplevel" \
-  "path:$PWD#nixosConfigurations.ordis.config.system.build.toplevel"
-nix run "path:$PWD#formatter.x86_64-linux" -- --check flake.nix $(find modules checks -name '*.nix' -type f)
+  "path:$source#nixosConfigurations.desktop.config.system.build.toplevel" \
+  "path:$source#nixosConfigurations.lab.config.system.build.toplevel" \
+  "path:$source#nixosConfigurations.ordis.config.system.build.toplevel"
 git diff --check
 ```
+
+Antes de executar Nix, revise `source-files.txt`. `scripts/check` exporta somente
+esses arquivos atuais e registra hashes fora da fonte. Inclua novos consumidores
+na lista explícita. Não teste um HEAD antigo como prova de alterações locais.
+O modo rápido ainda executa formatter por `nix run`, que pode realizar ou baixar
+dependências. O `flake check --no-build` posterior não executa builders ou VMs.
+Documentação privada e relatórios ficam fora do checkout publicável.
 
 `checks.architecture` protege hosts, contas, dependências e os diamantes reais de
 Ghostty e Pi. `checks.module-system` separa identidade, deduplicação e
@@ -115,6 +123,8 @@ Ordis é uma máquina instalada. Inspeção SSH não autoriza ativação, reboot
 remota. Antes de qualquer deploy autorizado, preserve a geração funcional e confira
 SSH novo, sudo, rede, armazenamento e boot. Siga `docs/ordis.md`.
 O perfil lab não pode compartilhar store, diretórios ou chaves do host.
-Commits locais e publicação remota seguem `~/personal/home/references/personal.md`
-e a política de entrega indicada ali, respeitando as restrições da tarefa.
-A autorização de entrega não autoriza builds, ativações ou deploy.
+Commits e publicação remota respeitam a autorização explícita da tarefa.
+Não faça push direto na branch padrão, merge, reescrita remota ou mudança de
+visibilidade sem autorização específica. O proprietário pode fornecer uma política
+privada adicional. Ela não é insumo de avaliação ou build deste repositório.
+A autorização de entrega não autoriza ativações ou deploy.

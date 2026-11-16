@@ -1,136 +1,86 @@
 # Trabalhar nos projetos
 
-Os ambientes são explícitos por sessão. Abrir Fish, Ghostty, Herdr ou Neovim não
-instala Ruby, Node, gems ou pacotes do projeto.
+Fish integra mise e direnv em shells interativos. Entrar no projeto não autoriza
+instalar runtimes ou executar uma `.envrc` não aprovada.
 
-## Pi e suas configurações
+## Autorizar o ambiente
 
-O Pi 1.5.0 é instalado pela fonte oficial, fixada no `flake.lock`, com o mesmo
-nixpkgs estável do sistema. O Node 24 usado pelo pacote não entra no PATH global.
-`PI_NODE_BIN` aponta para esse runtime para o launcher dos seus subagentes.
+Revise a configuração mise antes de `mise trust`. Instale as versões declaradas
+somente com uma ação explícita, como `mise install`. A configuração desabilita
+instalação automática nos hooks, no comando ausente, em exec e nas tarefas.
+Não define versões globais de Node ou Ruby.
 
-O pacote oficial dessa versão omite `pi-schema` na lista de dependências
-substituídas no build Nix. O módulo fornece esse pacote 1.5.0 do npm com hash
-fixo, sem acrescentar outra linha de nixpkgs.
+Revise a `.envrc` antes de `direnv allow`. Uma alteração exige nova autorização.
+O hook recarrega o ambiente ao entrar e restaura o ambiente anterior ao sair.
+Não use mise e direnv para controlar os mesmos runtimes no mesmo projeto.
+Uma `.envrc` executa código, não apenas atribuições de variáveis.
 
-Somente o host físico ativa `pi-config-restore`. Após login, o serviço espera
-você carregar explicitamente a chave SSH.
-
-```sh
-ssh-add
-systemctl --user status pi-config-restore
-```
-
-Com a chave carregada e a rede disponível, o serviço restaura primeiro o
-repositório privado `git@github.com:Rinyaresu/home.git`, branch `main`, em
-`~/personal/home`, e depois `git@github.com:Rinyaresu/agent.git`, branch `main`,
-em `~/.pi`. Cada destino é verificado independentemente: um checkout existente
-não impede a restauração do outro. Antes de restaurar Agent, o serviço exige
-`~/personal/home/references/personal.md`; se o Home existente não passar nessa validação,
-a execução falha e preserva o destino. Destinos existentes, inclusive symlinks,
-e destinos que apareçam durante o clone nunca são substituídos. O serviço verifica
-a chave pública do GitHub e não pede senha ou confirmação em background. Uma falha
-de rede ou autenticação é tentada novamente após 30 segundos.
-
-Espere a mensagem de restauração concluída antes de abrir `pi` pela primeira vez.
-Um `~/.pi` já existente, inclusive um symlink, é preservado sem merge, pull ou
-sobrescrita. Se abriu o Pi antes e ele criou essa pasta, revise o conteúdo antes
-de decidir como restaurar; o serviço não a apaga. Consulte os detalhes com
-`journalctl --user -u pi-config-restore`.
-
-Depois do clone, suas configurações continuam editáveis e o serviço não as
-atualiza automaticamente. Atualizações do Pi são feitas pelo Nix. Atualizações
-do seu repo de configuração continuam sendo operações Git explícitas.
-
-Credenciais, sessões e dependências ignoradas pelo Git não fazem parte do clone.
-Refaça os logins no Pi. O próprio Pi instala os pacotes declarados nas suas
-configurações ao iniciar; isso pode precisar de rede. Dependências adicionais de
-scripts das skills podem precisar de instalação separada.
-
-## Usar mise em um projeto existente
-
-Entre no diretório e confira a configuração do projeto antes de confiar nela.
-
-```fish
-mise trust
-mise install
-mise activate fish | source
-```
-
-`mise install` é uma operação explícita e pode acessar a rede. Os runtimes seguem
-as versões do projeto. Não configurei versões globais de Ruby ou Node.
-A ativação dura aquela sessão Fish. O hook não é ativado nas outras janelas ou
-panes, mas processos filhos podem herdar variáveis e PATH. Feche a sessão para
-voltar a um ambiente neutro.
-
-Para compilar gems nativas, abra uma shell com as dependências Nix antes de ativar
-mise no projeto.
+Para dependências nativas, use a devShell declarada. Ela fornece compilador,
+pkg-config e bibliotecas, mas não instala runtimes do projeto.
 
 ```sh
-nix --extra-experimental-features 'nix-command flakes' develop \
-  'path:/etc/nixos' -c fish
+source=$(python3 -B scripts/export-source.py)
+nix --extra-experimental-features 'nix-command flakes' develop "path:$source" -c fish
 ```
 
-A shell fornece compilador, pkg-config, OpenSSL, libyaml, zlib, libpq e libffi.
-Ela não contém Ruby ou Node e não cria arquivos no projeto. `/etc/nixos` é o
-caminho do guia de instalação. Ajuste-o se mantiver o repo em outro diretório. Os módulos nix-ld e envfs atendem dependências já validadas, mas não
-garantem compatibilidade com qualquer executável externo.
+`nix-ld` e `envfs` ajudam executáveis externos. Eles não garantem compatibilidade
+com toda ferramenta Linux. Teste as ferramentas reais do projeto.
 
-## Usar direnv em um projeto pessoal
+## Usar Herdr
 
-Use outra sessão Fish, sem ativar mise nela. Revise a `.envrc` e autorize apenas
-se confiar no conteúdo.
+Terminais gráficos interativos entram no Herdr automaticamente. O console continua
+livre para `niri-session`, `startx` e recuperação. Scripts e shells SSH não fazem
+autoattach. Panes existentes não entram em outra sessão Herdr.
+Para uma shell comum, use `HERDR_NO_AUTO=1 fish`.
 
-```fish
-direnv allow
-direnv hook fish | source
-```
+O wrapper inicia o cliente com o ambiente de projeto removido pelos hooks nativos
+de mise e direnv, sem mudar a shell pai. Cada pane Fish ativa o ambiente de seu
+próprio diretório. Isso não remove variáveis arbitrárias exportadas manualmente.
+Um servidor Herdr iniciado antes por outro caminho pode conservar ambiente antigo.
+Não encerre servidores com agentes em execução para testar essa situação.
 
-O hook automático distribuído pelo pacote está mascarado. Não configurei os dois
-provedores como hooks globais. Uma `.envrc` pode executar código, não é apenas
-uma lista de variáveis.
+O Herdr já preserva processos quando o cliente fecha ou a conexão cai.
+Esta configuração não acrescenta daemon, linger ou política de sobrevivência a
+reboot. Encerrar todo o login é uma validação separada de integração no NixOS.
 
-## Abrir Herdr
+## Desbloquear SSH
 
-Execute `herdr` em um terminal neutro, antes de ativar mise ou direnv, e ative o
-provedor somente na pane do projeto. Não há autoattach nem daemon iniciado pelo
-login. O shell das panes é Fish.
+O desktop usa um agente OpenSSH. A primeira operação que precisa da chave pode
+pedir sua passphrase por janela gráfica. `AddKeysToAgent` conserva a chave carregada.
+Bloquear a tela não descarrega a chave nem cria expiração automática.
+O cofre GNOME Keyring e o aplicativo Bitwarden não fornecem esse agente.
 
-Se iniciar o servidor Herdr a partir de um ambiente de projeto já ativo, os
-processos filhos podem herdar esse ambiente. Não acrescentei um wrapper que tente
-adivinhar e remover variáveis. Inicie o Herdr de um terminal neutro para não
-propagar dependências de um projeto para as outras panes.
+As sessões importam seu ambiente gráfico para o systemd do usuário. O bootstrap
+usa o mesmo socket do agente, espera uma sessão disponível e solicita desbloqueio.
+Cancelar não remove a passphrase ou desabilita autenticação. O serviço espera uma
+chave carregada posteriormente, sem repetir o prompt a cada tentativa de clone.
+Herdr fornece encaminhamento nativo do socket para suas panes. Valide uma operação
+real em pane existente e pane nova após iniciar a sessão.
 
-## Editar com Neovim
+## Restaurar configuração Pi
 
-Execute `nvim`. A configuração mantém as opções nativas de edição, inclusive
-indentação, numeração e completion. Rosé Pine Dawn é o único plugin de aparência.
-Não há distribuição de IDE ou gerenciador de plugins em runtime.
-Fish usa seu prompt e sua mensagem inicial nativos. Herdr mantém o onboarding.
+Pi e Herdr vêm das fontes fixadas no lock. O bootstrap do desktop restaura Home
+e depois Agent quando os respectivos destinos não existem. Home deve conter
+`references/personal.md`. Destinos existentes, inclusive symlinks e destinos que
+apareçam durante clone, não são sobrescritos nem atualizados.
 
-LSP nativo está configurado para JavaScript, TypeScript, JSX, TSX, Nix e Bash.
-O servidor TypeScript depende do TypeScript preparado no projeto. Ele não instala
-as dependências automaticamente. Os diagnósticos não escrevem texto no fim das
-linhas.
+O bootstrap usa a chave de host GitHub fixada, clone não interativo e a chave já
+desbloqueada. Falhas de rede podem ser tentadas novamente. Não há pull automático
+em checkouts existentes. Espere a conclusão antes de abrir Pi pela primeira vez.
+Um diretório `~/.pi` criado antes disso é preservado, mesmo que esteja incompleto.
+Consulte `journalctl --user -u pi-config-restore` sem publicar dados de autenticação.
 
-Use os atalhos nativos de LSP do Neovim. Não acrescentei um segundo conjunto de
-mapeamentos ou alterei a tecla líder.
+Git não recupera credenciais, sessões e arquivos ignorados. Refaça os logins dos
+aplicativos e revise suas dependências locais. Nenhum checkout privado é necessário
+para avaliar ou construir o sistema.
 
-| Atalho | Ação |
-| --- | --- |
-| `Ctrl+]` | Ir à definição com o tagfunc do LSP conectado |
-| `K` | Mostrar documentação |
-| `grr` | Consultar referências |
-| `grn` | Renomear símbolo |
-| `gra` | Pedir ação de código |
-| `Ctrl+x`, `Ctrl+o` em inserção | Pedir completion nativa |
+## Usar Neovim
 
-Ruby LSP automático e formatação ao salvar ficaram adiados nesta entrega.
-Essa decisão prioriza o pedido mais recente de uma configuração pequena e evita
-instalação de gems no início do editor. Isso é uma diferença em relação ao plano
-anterior de formatar quando o projeto define um formatador. Salvar nunca depende
-de servidor ou formatador.
+A base é pequena, com Rosé Pine Dawn, LSP nativo para Nix, Bash e JavaScript ou
+TypeScript. O servidor TypeScript depende das dependências preparadas do projeto.
+Não há gerenciador de plugins ou instalação de runtimes ao abrir o editor.
+Reconstruir a configuração completa é trabalho separado.
 
-A integração Ruby pode ser acrescentada depois com um bundle explicitamente
-preparado no Ruby do projeto. Não execute `ruby-lsp` diretamente sem verificar o
-bootstrap do bundle, pois sua inicialização padrão pode instalar gems.
+Use os atalhos nativos de LSP, como `K`, `grr`, `grn` e `gra`.
+A configuração não importa os plugins ou atalhos do editor anterior e não formata
+automaticamente ao salvar.

@@ -1,119 +1,71 @@
 # nix
 
-Configuração pessoal do NixOS 26.05 estável com flakes, flake-parts, import-tree
-e Home Manager. Os módulos seguem o padrão dendritic e se organizam por função.
+Configuração NixOS estável com flakes, flake-parts, import-tree e Home Manager.
+O lock fixa as dependências. O repositório publica três sistemas independentes.
 
-`desktop` prepara a futura migração do PC CachyOS. `ordis` é o servidor doméstico
-sem desktop, com usuário próprio, SSH e systemd-boot. Leia [a operação do Ordis](docs/ordis.md)
-e [acesso privado pelo notebook com Tailscale](docs/tailscale.md).
-`lab` é uma VM manual isolada, sem compartilhar
-Nix store, diretórios ou chaves do host. O login `rinyaresu` com senha `nixos`
-existe somente no laboratório. Nunca instale o perfil `lab` no PC.
+- `desktop` usa niri com Noctalia, com i3 como alternativa de recuperação.
+- `lab` é uma VM manual com store próprio e rede desabilitada. A senha pública
+  `nixos` existe somente nesse perfil. Não instale o lab em máquina física.
+- `ordis` é um servidor sem Home Manager ou aplicativos pessoais. Alterar suas
+  fontes não autoriza aplicar a configuração no servidor instalado.
 
-O perfil Ordis seleciona Pi-hole e Tailscale. Atualizar este repositório não faz
-deploy: somente um rebuild autorizado aplica os serviços. Antes de aplicar no
-servidor, siga os requisitos de credenciais e recuperação dos guias de cada serviço.
+## Verificar sem ativar
 
-## Conferir a configuração
-
-Use Linux x86_64 com Nix, Bash, Python 3 e Git. Execute da raiz do repositório.
+Use Linux x86_64, Nix com flakes, Bash, Python 3 e Git. KVM permite executar os
+checks de integração em VMs descartáveis.
 
 ```sh
+./scripts/check --quick
 ./scripts/check
+source=$(python3 -B scripts/export-source.py)
 nix --extra-experimental-features 'nix-command flakes' build --no-link --no-write-lock-file \
-  "path:$PWD#nixosConfigurations.desktop.config.system.build.toplevel" \
-  "path:$PWD#nixosConfigurations.lab.config.system.build.toplevel" \
-  "path:$PWD#nixosConfigurations.ordis.config.system.build.toplevel"
+  "path:$source#nixosConfigurations.desktop.config.system.build.toplevel" \
+  "path:$source#nixosConfigurations.lab.config.system.build.toplevel" \
+  "path:$source#nixosConfigurations.ordis.config.system.build.toplevel"
 ```
 
-O primeiro comando executa os testes da automação, confere a formatação, avalia
-o flake e constrói seus checks. Isso inclui os checks arquiteturais e do sistema
-de módulos e as integrações Pi-hole e Tailscale em VMs QEMU (KVM recomendado).
-A VM Tailscale usa a raiz real do Ordis e também verifica a coexistência com Pi-hole,
-sem autenticar dispositivos ou ativar o servidor instalado.
-O segundo constrói os três sistemas sem aplicá-los. Os checks cobrem
-composição, identidade, deduplicação, dependências e isolamento. Não testam sessões
-gráficas nem hardware.
+`scripts/check` exporta somente os arquivos enumerados em `source-files.txt`.
+A exportação usa os bytes atuais, inclusive alterações ainda não commitadas.
+Documentação, arquivos ignorados, histórico Git e ciphertext pessoal não entram
+nessa exportação.
+Revise a lista ao acrescentar arquivos consumidos pelo flake ou pelos testes.
+O exportador recusa caminhos privados, travessia de diretórios e symlinks.
 
-O workflow `Checks` executa `./scripts/check` em pushes e pull requests, num
-runner Ubuntu com KVM. Ele não aplica sistemas nem usa credenciais do homelab.
-O CI exige os builders completos dos checks. Avaliar com `--no-build` não
-comprova sua execução. Os builds de `desktop`, `lab` e `ordis` permanecem locais,
-no segundo comando acima. O CI padrão não cobre esses três builds completos.
+Cada exportação fica em `~/.local/state/pi/work-artifacts/nix/check-source-*/`.
+`manifest.json`, fora da fonte exportada, registra hashes e permissões executáveis.
+Use esse conteúdo para identificar a revisão realmente testada. Não execute Nix
+com `path:$PWD` sobre uma árvore que contenha planejamento, backups ou segredos.
+`.gitignore` não filtra fontes `path:`.
 
-Para instalar o hook rápido neste checkout, execute:
+O modo rápido executa testes Python, formatter e avaliação dos checks. O formatter
+pode realizar ou baixar dependências. `flake check --no-build` não executa os
+builders dos checks ou suas VMs. O modo completo os executa. Nenhum dos modos
+substitui o build dos três sistemas acima ou a validação física.
 
-```sh
-git config --local core.hooksPath .githooks
-```
+O workflow `Checks` executa `./scripts/check` em push e pull request. Não aplica
+sistemas e não usa credenciais pessoais. Os builds completos dos três hosts são
+uma verificação separada. Para instalar o hook rápido neste checkout, execute
+`git config --local core.hooksPath .githooks`. O hook examina a árvore de trabalho
+atual, não cada ref enviada, e não substitui o CI.
 
-Antes de cada push, `.githooks/pre-push` executa `./scripts/check --quick`.
-Esse modo verifica os testes da automação, a formatação e a avaliação do flake,
-sem construir checks ou executar VMs. Ele verifica a árvore de trabalho atual,
-não cada ref enviada. O hook não substitui o CI e pode ser ignorado pelo Git.
-O workflow só passa a executar depois de publicado. Bloquear merges exige tornar
-seu status obrigatório nas regras da branch, uma configuração separada do GitHub.
+## Usar e manter
 
-`path:` inclui arquivos locais mesmo antes do primeiro commit. Ele também pode
-incluir arquivos ignorados pelo Git. Nunca coloque chaves privadas ou identidades
-age em texto simples neste diretório. `.gitignore` não impede sua cópia para o
-Nix store.
+- [Sessões, atalhos e capturas](docs/desktop.md).
+- [Ambientes por projeto e terminal](docs/desenvolvimento.md).
+- [Serviços locais e acesso remoto](docs/servicos.md).
+- [Instalação e limites de recuperação](docs/instalacao.md).
+- [Insumos privados de provisionamento](secrets/README.md).
+- [Composição e contratos](docs/estrutura.md).
+- [Servidor](docs/ordis.md), [Pi-hole](docs/pihole.md) e [Tailscale](docs/tailscale.md).
 
-## Instalar e usar
+A avaliação e o build não dependem de um checkout Home, agente SSH pessoal ou
+acesso à tailnet. A ativação do desktop exige insumos privados externos para
+SOPS. A ausência desses insumos falha, em vez de gerar uma chave substituta.
 
-Leia [o guia de instalação](docs/instalacao.md) antes de alterar discos.
-O destino é o SSD SATA. O NVMe do Windows deve permanecer intacto.
-Confira o repositório publicado, o acesso ao BitLocker e a aceitação da mídia
-pelo firmware antes de instalar.
+Atualizações e ativações são manuais. A política semanal de retenção está
+preparada, mas permanece desabilitada até validar a migração e a continuidade dos
+agentes. Não execute garbage collection durante instalação ou recuperação.
+Preserve `system.stateVersion` e `home.stateVersion` nas atualizações.
 
-Faça login no console e execute `startx` para i3 ou `niri-session` para niri com
-Noctalia. Super+Enter abre Ghostty. Não há início automático do desktop.
-
-- [Desktop e atalhos](docs/desktop.md).
-- [Mise, direnv, Herdr e Neovim](docs/desenvolvimento.md).
-- [Rede, VPN, Docker e VMs](docs/servicos.md).
-- [Pi-hole no Ordis: testes, implantação e recuperação](docs/pihole.md).
-- [SSH cifrado com SOPS e recuperação](secrets/README.md).
-- [Decisões da configuração](docs/decisoes.md).
-
-## Alterar a configuração
-
-`flake.nix` declara as fontes e `flake.lock` fixa suas revisões.
-Cada arquivo em `modules/` é um módulo flake-parts descoberto pelo import-tree.
-
-- `modules/hosts/` publica cada `nixosSystem` e compõe sua raiz `nixos.host-<host>` com hardware e estado próprios.
-- `modules/features/` publica capacidades por função. Arquivos relacionados ficam juntos, como i3 e suas ferramentas.
-- `modules/users/` contém identidade e integrações pessoais, incluindo SSH cifrado e bootstrap privado do Pi.
-- `modules/nix/` contém a integração Home Manager e os checks.
-
-Os hosts importam explicitamente módulos `flake.modules.nixos`. Cada conta
-seleciona seus próprios módulos `flake.modules.homeManager` em
-`home-manager.users.<nome>.imports`. A integração nativa deriva nome e home da
-conta NixOS. Não existe usuário principal global ou matching por nomes de módulos.
-
-Uma capacidade pode ter duas partes selecionáveis. `nixos.sound` configura
-PipeWire, e `homeManager.sound` instala pavucontrol na conta escolhida. i3 inclui
-suas ferramentas de clipboard e screenshots. Contribuições reutilizáveis usam
-keys nativas qualificadas para deduplicar imports sobrepostos. Nomes publicados
-e `_file` não fornecem essa garantia.
-
-Leia o [contrato de desenvolvimento](AGENTS.md) antes de alterar a composição.
-
-Leia [a composição dendritic](docs/estrutura.md) para acrescentar ou selecionar
-uma funcionalidade.
-
-Home Manager participa do rebuild do NixOS. Não há sincronização deste repo para
-o CachyOS. Somente no NixOS já instalado, aplique uma alteração temporariamente
-antes de torná-la persistente.
-
-```sh
-sudo nixos-rebuild test --flake "path:$PWD#desktop"
-sudo nixos-rebuild switch --flake "path:$PWD#desktop"
-```
-
-`switch` também atualiza o boot. O Limine não exige assinatura nem chaves Secure
-Boot. Isso não modifica o estado do Secure Boot na BIOS.
-
-Atualizações do lockfile e limpeza do Nix store são operações sob demanda.
-Preserve gerações conhecidas antes de garbage collection. Não altere
-`system.stateVersion` ou `home.stateVersion` para acompanhar a release.
+Leia [AGENTS.md](AGENTS.md) antes de alterar composição. Use imports nativos.
+Não há registro de usuários ou mecanismo próprio de associação entre classes.

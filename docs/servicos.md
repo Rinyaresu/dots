@@ -1,75 +1,82 @@
-# Usar serviços locais
+# Usar serviços do desktop
 
-Este guia se aplica a desktop e lab. O Ordis possui [operação própria](ordis.md).
+Este guia descreve o desktop. Lab e Ordis têm políticas próprias.
+Construir a configuração não ativa serviços no sistema em uso.
 
-## Ferramentas básicas
+## Rede e acesso remoto
 
-A funcionalidade `tools` inclui `btop`, `ripgrep` (`rg`), `fd`, `fzf`, `jq`, `file`, `zip`, `unzip`,
-`lsof`, `dnsutils` (`dig`), `pciutils` (`lspci`), `usbutils` (`lsusb`) e `gh`.
-Elas usam os padrões nativos, sem aliases ou hooks de shell adicionais.
-`rsync`, `curl`, `top`, `man` e `strace` já vêm na base do NixOS.
-A presença de `gh` não configura login nem altera a autenticação SSH do Git.
+NetworkManager administra endereços e DNS recebidos da rede. Perfis Wi-Fi são
+locais, não declarados no flake. Tailscale não substitui DNS, não aceita rotas,
+exit nodes ou SSH Tailscale. A instalação nova cadastra um dispositivo novo.
+Não copie o estado do daemon anterior.
 
-## Áudio
+OpenSSH exige chave pública, sem senha, keyboard-interactive, root ou agent
+forwarding. O firewall permite novas conexões TCP 22 somente em `tailscale0`.
+A interface não é confiável para outras portas. Grants da tailnet continuam
+necessários. O arquivo de autorização é externo à fonte.
 
-Abra `pavucontrol` para escolher dispositivos e ajustar o volume de cada
-aplicativo. Ele controla o áudio do PipeWire pela compatibilidade PulseAudio.
-Também está disponível no niri, além dos controles do Noctalia.
+| Caminho | Contrato |
+| --- | --- |
+| `/var/lib/desktop-ssh/authorized_keys/rinyaresu` | Chaves públicas verificadas dos clientes, root:root, 0644 |
+| `/var/lib/desktop-ssh/authorized_keys/` | Diretório root:root, 0755, sem escrita por outros |
 
-## Arquivos e volumes
+Provisione o arquivo por console ou canal administrativo já autorizado.
+A ausência dele recusa login. Autorizações na home não são consumidas nesse
+servidor. Não copie chaves privadas do notebook para o desktop.
+Console e sudo continuam aceitando a senha local.
 
-Nautilus tem suporte GVfs/UDisks2 para acessar arquivos e montar volumes por
-solicitação. A montagem automática e a abertura automática de mídia estão
-desativadas. Escolha explicitamente o dispositivo na interface e desmonte ou ejete
-a mídia antes de removê-la. Isso não autoriza montar o volume BitLocker.
+A exceção LAN de recuperação limitada ao notebook está pendente de identificação
+estável e escolha de interfaces. Não use endereços observados como reservas nem
+libere uma sub-rede inteira. Confira [o login do cliente Tailscale](tailscale.md)
+antes de autenticar. A política de daemon bloqueada exige o fluxo compatível do pin.
 
-## Conectar a rede
+## Áudio e arquivos
 
-Use `nmtui` no console ou as interfaces de rede da sessão gráfica. NetworkManager
-administra as conexões. Não importei senhas Wi-Fi ou perfis do CachyOS.
+PipeWire e WirePlumber fornecem áudio, com compatibilidade ALSA e PulseAudio.
+Use `pavucontrol` ou Noctalia para escolher saída e entrada. Não há regras fixas
+de prioridade de dispositivos.
 
-## Conectar a VPN de trabalho manualmente
+Nautilus usa GVfs para montagem explícita. Montagem e abertura automática de mídia
+estão desabilitadas. O perfil não monta partições Windows. Uma ação no gerenciador
+de arquivos não autoriza montar volumes que devam ser preservados.
 
-Mantenha o arquivo WireGuard fora deste repositório e do Nix store. Copie-o
-localmente em cada instalação, por exemplo para `/etc/wireguard/trabalho.conf`,
-com dono root e permissão 0600. Não habilite uma unidade de autostart.
+## VPN opcional
 
-Conecte e desconecte explicitamente com a ferramenta nativa.
+`wireguard-tools` está disponível para conexão manual eventual. Não há perfil ou
+autoconexão. Mantenha configurações locais fora do Git e do Nix store, com dono
+root e modo 0600. Revise rotas, DNS e scripts antes de conectar.
+Nenhuma configuração de VPN do notebook pertence a esta migração.
 
-```sh
-sudo wg-quick up /etc/wireguard/trabalho.conf
-sudo wg-quick down /etc/wireguard/trabalho.conf
-```
+## Containers e VMs
 
-`wg-quick` usa as rotas e o DNS definidos no arquivo quando você pede a conexão.
-Não use importação automática do NetworkManager para esse perfil. Ela pode
-ativar a conexão antes de desabilitar autoconnect. Confira o DNS e os scripts
-exigidos pelo perfil corporativo.
+Docker inicia no boot. A conta não pertence ao grupo docker. Use Compose com sudo.
+Não existe daemon rootless paralelo. Portas publicadas em bridges novas usam
+loopback por padrão. Publicação explícita em outro endereço, redes existentes,
+IPv6 e modo host precisam de revisão própria. O firewall não garante isolamento
+das portas publicadas pelo Docker.
 
-## Executar containers
+Não há PostgreSQL nativo selecionado para o desktop. Isso não autoriza remover
+serviços ou bancos de uma instalação existente. Cada projeto define suas
+necessidades sem conversão automática para containers.
 
-Docker inicia no boot. Seu usuário não pertence ao grupo docker e não tem daemon
-rootless paralelo.
+Libvirt e virt-manager oferecem VMs de sistema com autorização Polkit por senha.
+QEMU não roda como root. Nenhum hóspede é criado ou configurado para autostart.
+Não há bridge física, compartilhamento ou passthrough configurado por esse perfil.
 
-```sh
-sudo docker compose up
-sudo docker compose down
-```
+## Snapshots e manutenção
 
-A configuração usa loopback como endereço padrão das portas publicadas nas
-bridges novas. Isso não muda redes existentes ou uma publicação explícita
-como `0.0.0.0:3000:3000`. `network_mode: host` também fica fora dessa proteção.
-Revise as portas dos projetos compartilhados antes de executá-los. O firewall sozinho não é garantia contra exposição pelo Docker.
+Snapper cria pontos diários somente de `/home`, com sete pontos diários e execução
+compensatória após desligamento. Não há snapshots automáticos da raiz ou backup
+externo. O armazenamento fica em `/home/.snapshots`, root:root, 0700.
+Arquivos apagados podem continuar presentes no histórico.
 
-Os serviços nativos de projeto são manuais. Não configurei PostgreSQL ou Redis
-globais no boot.
+Para recuperar, liste os pontos com `snapper -c home list` em contexto
+administrativo autorizado. Copie o arquivo de
+`/home/.snapshots/NUMERO/snapshot/CAMINHO_RELATIVO_A_HOME` para um destino revisado.
+Preserve atributos, confira dono, modo e conteúdo antes de substituir o arquivo
+atual. Snapshots não protegem contra perda do SSD.
 
-## Criar uma VM
-
-Abra `virt-manager` na sessão gráfica. Use uma conexão QEMU/KVM de sistema para
-as máquinas que precisam de recursos de rede do libvirt. A operação administrativa
-usa Polkit com senha, sem incluir o usuário no grupo libvirtd.
-
-QEMU e `virsh` também estão disponíveis. A configuração não cria hóspedes,
-compartilhamentos de diretórios, passthrough ou bridge com a rede física.
-Nenhuma VM de laboratório começa automaticamente por esta configuração.
+Atualizações e ativações são manuais, sem reboot automático. O desktop prepara
+retenção semanal de gerações acima de 30 dias, mas `nix.gc.automatic` continua
+falso. Só faça opt-in explícito depois de validar a migração, rollback e agentes.
+Lab e Ordis continuam com manutenção manual. Não execute limpeza durante recuperação.
