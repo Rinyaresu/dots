@@ -103,19 +103,24 @@ pkgs.testers.runNixOSTest {
     client.wait_for_unit("network.target")
     server.wait_for_unit("multi-user.target")
 
-    with subtest("missing credential fails closed"):
+    with subtest("missing credential fails closed before setup mutates the database"):
         server.fail("systemctl is-active --quiet pihole-ftl.service")
+        server.fail("systemctl is-active --quiet pihole-ftl-setup.service")
+        server.fail("test -e /var/lib/pihole/gravity.db")
         server.fail("curl --fail --max-time 2 http://127.0.0.1:8080/api/auth")
 
-    with subtest("malformed credential also fails closed"):
-        server.succeed("install -d -m 700 /var/lib/pihole-secrets; printf '%s' '$BALLOON-SHA256$v=1$s=1024,t=32$A$A' > /var/lib/pihole-secrets/admin-hash; chmod 600 /var/lib/pihole-secrets/admin-hash; systemctl reset-failed pihole-ftl; systemctl start pihole-ftl")
+    with subtest("malformed credential rejects startup before setup mutates the database"):
+        server.succeed("install -d -m 700 /var/lib/pihole-secrets; printf '%s' '$BALLOON-SHA256$v=1$s=1024,t=32$A$A' > /var/lib/pihole-secrets/admin-hash; chmod 600 /var/lib/pihole-secrets/admin-hash; systemctl reset-failed pihole-ftl")
+        server.fail("systemctl start pihole-ftl")
         server.wait_until_succeeds("systemctl is-failed --quiet pihole-ftl", timeout=30)
+        server.fail("systemctl is-active --quiet pihole-ftl-setup.service")
+        server.fail("test -e /var/lib/pihole/gravity.db")
         server.fail("curl --fail --max-time 2 http://127.0.0.1:8080/api/auth")
         server.succeed("systemctl stop pihole-ftl-setup pihole-ftl; rm /var/lib/pihole-secrets/admin-hash")
 
     # Random test-only password exists in VM RAM, never in a derivation or argv.
     server.succeed("python3 ${./pihole-provision.py}")
-    server.succeed("systemctl reset-failed pihole-ftl pihole-ftl-setup; systemctl restart pihole-ftl")
+    server.succeed("systemctl reset-failed; systemctl restart pihole-ftl")
     server.wait_for_unit("pihole-ftl.service")
     server.succeed("python3 ${./pihole-argv.py} ${ordis.services.pihole-ftl.piholePackage}/share/pihole/advanced/Scripts/api.sh")
     server.wait_until_succeeds("test -s /var/lib/pihole/gravity.db")

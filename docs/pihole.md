@@ -8,11 +8,18 @@ O módulo reutilizável possui provisionamento, sandbox e correções upstream.
 
 ## Autenticação fora do store
 
-O serviço recusa iniciar sem `/var/lib/pihole-secrets/admin-hash`, root:root, 0600,
-em diretório 0700. O conteúdo é um hash Balloon-SHA256 v6, não a senha em claro.
-`LoadCredential` entrega o arquivo ao serviço. O wrapper passa o hash pelo
-ambiente, não por argv. O provisionador `pihole-admin-hash` confirma a senha e
-faz substituição atômica. Não passe senha em argumentos, opções Nix ou histórico.
+Provisione `/var/lib/pihole-secrets/admin-hash` como root:root, 0600, em diretório
+0700. O conteúdo é um hash Balloon-SHA256 v6, não a senha em claro.
+`LoadCredential` entrega o arquivo ao serviço. `ExecStartPre` valida seu formato
+antes de liberar o FTL e o setup dependente. Ausência ou formato inválido impedem
+essa partida, sem criar ou modificar o banco gravity. O wrapper passa o hash pelo
+ambiente, não por argv. O provisionador `pihole-admin-hash` confirma a senha,
+aplica os modos e faz substituição atômica. O serviço não faz uma verificação
+adicional de dono e modo. Não passe senha em argumentos, opções Nix ou histórico.
+
+Essa ordem evita o setup iniciado com credencial inválida. Não recupera bancos
+já parciais nem torna a troca upstream transacional. Uma interrupção durante o
+swap ainda exige preservar o estado e seguir recuperação autorizada.
 
 O token efêmero de CLI fica em tmpfs. Sessões administrativas não persistem.
 Core dumps e swap das unidades são restringidos. Isso não cifra disco ou swap do
@@ -48,8 +55,9 @@ Gerações Nix não substituem essa cópia. Não execute limpeza durante recuper
 servidor real, upstream determinístico e clientes permitidos e não confiáveis.
 As credenciais são fixtures geradas no ambiente descartável.
 
-O teste verifica ausência de credencial, provisionamento e rotação, DNS permitido
-e bloqueado por TCP e UDP, login e recusas de API, restrições de portas, permissões,
+O teste exige recusa síncrona da partida com hash malformado e ausência de mutação
+do banco sem credencial válida. Também verifica provisionamento e rotação, DNS
+permitido e bloqueado por TCP e UDP, login e recusas de API, restrições de portas, permissões,
 ausência de credenciais em argv e persistência após restart, morte do processo e
 reboot virtual. Leitura de um drvPath não executa esse teste.
 
