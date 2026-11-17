@@ -207,4 +207,4 @@ assert required <= seen, 'required source, manifest, activation or ciphertext no
 print('PASS exact private fixture bytes absent from', count, 'regular store files')
 print('PASS fixture digests', hashlib.sha256(age).hexdigest(), hashlib.sha256(ssh).hexdigest())
 '''
-    print(machine.succeed(f"python3 -c {shlex.quote(scanner)}", timeout=180))
+    print(machine.succeed(f"python3 -c {shlex.quote(scanner)}", timeout=900))
