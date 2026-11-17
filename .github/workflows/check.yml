@@ -1,44 +1,18 @@
 name: Checks
 
 on:
-  push:
-    branches: [master]
-  pull_request:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      build_systems:
-        description: Build desktop, lab and Ordis after the complete checks
-        type: boolean
-        default: false
+      sample:
+        type: string
+        required: true
 
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
-  quick:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
-        with:
-          python-version: '3.13'
-      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            max-jobs = 1
-            cores = 2
-      - name: Python, formatting and evaluation (not runtime validation)
-        run: /usr/bin/time -v ./scripts/check --quick
-
   check:
+    if: github.repository == 'Rinyaresu/dots' && github.event_name == 'push' && github.ref == 'refs/heads/perf/herdr-cache-benchmark'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -75,46 +49,60 @@ jobs:
         run: |
           source=$(python3 -B scripts/export-source.py)
           output=$(nix eval --impure --raw --expr \
-            "(builtins.getFlake \"path:$source\").inputs.herdr.packages.x86_64-linux.herdr.outPath")
-          echo "output=$output" >> "$GITHUB_OUTPUT"
-          echo "key=herdr-runtime-v1-${RUNNER_OS}-${RUNNER_ARCH}-${output##*/}" >> "$GITHUB_OUTPUT"
+            "(builtins.getFlake \"path:$source\").inputs.herdr.packages.x86_64-linux.herdr.drvPath")
+          out_path=$(nix-store --query --outputs "$output")
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          printf 'commit=%s drvPath=%s outPath=%s\n' "$GITHUB_SHA" "$output" "$out_path"
+          if nix-store --check-validity "$out_path"; then
+            echo 'Herdr output already present before restore' >&2
+            exit 1
+          fi
+          echo "output=$out_path" >> "$GITHUB_OUTPUT"
+          echo "key=herdr-benchmark-v1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${out_path##*/}" >> "$GITHUB_OUTPUT"
       - name: Restore only the Herdr runtime binary cache
         id: herdr-cache
-        continue-on-error: true
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ${{ runner.temp }}/herdr-cache
           key: ${{ steps.herdr.outputs.key }}
-      - name: Import the trusted branch cache
-        continue-on-error: true
-        if: steps.herdr-cache.outputs.cache-hit == 'true'
+      - name: Require the expected cache state
+        env:
+          SAMPLE: ${{ inputs.sample }}
+          EXACT_HIT: ${{ steps.herdr-cache.outputs.cache-hit }}
+          MATCHED_KEY: ${{ steps.herdr-cache.outputs.cache-matched-key }}
+          EXPECTED_KEY: ${{ steps.herdr.outputs.key }}
+        run: |
+          printf 'sample=%s exact_hit=%s matched_key=%s expected_key=%s\n' \
+            "$SAMPLE" "$EXACT_HIT" "$MATCHED_KEY" "$EXPECTED_KEY"
+          case "$SAMPLE" in
+            cold) test "$EXACT_HIT" != true && test -z "$MATCHED_KEY" ;;
+            warm) test "$EXACT_HIT" = true && test "$MATCHED_KEY" = "$EXPECTED_KEY" ;;
+            *) exit 1 ;;
+          esac
+      - name: Import and verify the exact Herdr output
+        if: inputs.sample == 'warm'
         env:
           HERDR_OUTPUT: ${{ steps.herdr.outputs.output }}
         run: |
           /usr/bin/time -v nix copy --no-check-sigs \
             --from "file://$RUNNER_TEMP/herdr-cache" "$HERDR_OUTPUT"
+          nix-store --check-validity "$HERDR_OUTPUT"
+          printf 'Herdr import verified: %s\n' "$HERDR_OUTPUT"
       - name: Complete checks including real VMs
         run: /usr/bin/time -v ./scripts/check
-      - name: Build all three systems when requested
-        if: github.event_name == 'workflow_dispatch' && inputs.build_systems
-        run: |
-          source=$(python3 -B scripts/export-source.py)
-          /usr/bin/time -v nix build --no-link --no-write-lock-file \
-            "path:$source#nixosConfigurations.desktop.config.system.build.toplevel" \
-            "path:$source#nixosConfigurations.lab.config.system.build.toplevel" \
-            "path:$source#nixosConfigurations.ordis.config.system.build.toplevel"
+      - name: Record disk space after the suite
+        run: df -h / /nix
       - name: Export only the public Herdr runtime closure
-        id: herdr-export
-        continue-on-error: true
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.herdr-cache.outputs.cache-hit != 'true'
+        if: inputs.sample == 'cold'
         env:
           HERDR_OUTPUT: ${{ steps.herdr.outputs.output }}
         run: |
           /usr/bin/time -v nix copy --to "file://$RUNNER_TEMP/herdr-cache" "$HERDR_OUTPUT"
-          du -sh "$RUNNER_TEMP/herdr-cache"
-      - name: Save cache only from successful master pushes
-        continue-on-error: true
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.herdr-export.outcome == 'success'
+          nix path-info --closure-size "$HERDR_OUTPUT"
+          find "$RUNNER_TEMP/herdr-cache" -type f -printf '%s\n' |
+            awk '{bytes += $1} END {printf "exported_file_bytes=%.0f\n", bytes}'
+      - name: Save cache only after the successful cold sample
+        if: inputs.sample == 'cold' && github.repository == 'Rinyaresu/dots' && github.event_name == 'push' && github.ref == 'refs/heads/perf/herdr-cache-benchmark'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ${{ runner.temp }}/herdr-cache

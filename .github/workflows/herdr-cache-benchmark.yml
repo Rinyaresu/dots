@@ -1,0 +1,20 @@
+name: Herdr cache benchmark
+
+on:
+  push:
+    branches: [perf/herdr-cache-benchmark]
+
+permissions:
+  contents: read
+
+jobs:
+  cold:
+    uses: ./.github/workflows/check.yml
+    with:
+      sample: cold
+
+  warm:
+    needs: cold
+    uses: ./.github/workflows/check.yml
+    with:
+      sample: warm
