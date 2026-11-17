@@ -196,6 +196,13 @@ Somente desktop seleciona as duas partes. Lab mantém a infraestrutura SOPS sem
 segredos pessoais. Ordis não a importa. Veja [o contrato](../secrets/README.md).
 O bootstrap privado Pi também pertence à pasta do usuário e só desktop o seleciona.
 
+A capacidade HM `herdr-tree` importa `herdr`, preserva suas seções e acrescenta
+as linhas declarativas da TreeView, onboarding desabilitado e Cargo e Rust para
+o build gerenciado do plugin. Somente desktop a seleciona. Lab mantém `herdr`
+e Ordis não importa nenhum dos dois. O plugin externo e o pacote do fork
+continuam nos gerenciadores Herdr e Pi. Não há instalação de plugin em hooks HM.
+Veja [instalação, atualização e rollback por máquina](herdr-tree.md).
+
 ## Verificação dos contratos
 
 `modules/nix/checks.nix` publica `checks.x86_64-linux.architecture`. A verificação

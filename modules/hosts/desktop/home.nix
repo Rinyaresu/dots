@@ -24,7 +24,7 @@ in
       imports = [
         home.rinyaresu
         home.fish
-        home.herdr
+        home.herdr-tree
         home.neovim
         home.pi
         home.providers
