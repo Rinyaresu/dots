@@ -7,6 +7,8 @@
 let
   desktop = config.flake.nixosConfigurations.desktop.config;
   home = desktop.home-manager.users.rinyaresu;
+  labHome = config.flake.nixosConfigurations.lab.config.home-manager.users.rinyaresu;
+  ordis = config.flake.nixosConfigurations.ordis.config;
   restore = builtins.head home.systemd.user.services.pi-config-restore.Service.ExecStart;
   herdr = builtins.head (
     builtins.filter (package: (package.pname or "") == "herdr") home.home.packages
@@ -53,6 +55,12 @@ let
     direnv-automatic-hook = home.programs.direnv.enable && home.programs.direnv.enableFishIntegration;
     no-competing-mise-direnv = !home.programs.direnv.mise.enable;
     no-herdr-login-daemon = !(home.systemd.user.services ? herdr);
+    desktop-tree-layout =
+      lib.hasInfix "$agent_tree_branch"
+        home.xdg.configFile."herdr/config.toml".text;
+    lab-without-tree =
+      !(lib.hasInfix "$agent_tree_branch" labHome.xdg.configFile."herdr/config.toml".text);
+    ordis-without-home-manager = !(ordis ? home-manager);
     fish-login = desktop.users.users.rinyaresu.shell == desktop.programs.fish.package;
   };
   failures = builtins.attrNames (lib.filterAttrs (_: pass: !pass) results);
@@ -74,6 +82,23 @@ in
           failures == [ ]
         ) "Session contract failures: ${lib.concatStringsSep ", " failures}";
         pkgs.writeText "session-contract.json" (builtins.toJSON results);
+      checks.herdr-tree-config =
+        pkgs.runCommand "herdr-tree-config-check" { nativeBuildInputs = [ pkgs.python3 ]; }
+          ''
+            python - ${home.xdg.configFile."herdr/config.toml".source} <<'PY'
+            import pathlib, sys, tomllib
+            config = tomllib.loads(pathlib.Path(sys.argv[1]).read_text())
+            assert config["onboarding"] is False
+            assert config["ui"]["sidebar"]["agents"]["rows"] == [
+                ["state_icon", "$agent_tree_branch", "machine", "workspace", "tab"],
+                ["agent"],
+            ]
+            assert config["terminal"]["default_shell"]
+            assert config["update"] == {"version_check": False, "manifest_check": False}
+            PY
+            HERDR_CONFIG_PATH=${home.xdg.configFile."herdr/config.toml".source} ${herdr}/bin/herdr config check
+            touch "$out"
+          '';
       checks.shell-session =
         pkgs.runCommand "shell-session-check" { nativeBuildInputs = [ pkgs.python3 ]; }
           ''

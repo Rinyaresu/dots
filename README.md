@@ -52,6 +52,7 @@ atual, não cada ref enviada, e não substitui o CI.
 
 - [Sessões, atalhos e capturas](docs/desktop.md).
 - [Ambientes por projeto e terminal](docs/desenvolvimento.md).
+- [TreeView do Herdr por máquina](docs/herdr-tree.md).
 - [Serviços locais e acesso remoto](docs/servicos.md).
 - [Instalação e limites de recuperação](docs/instalacao.md).
 - [Provisionamento SOPS e recuperação](secrets/README.md).

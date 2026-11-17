@@ -58,4 +58,22 @@ in
         manifest_check = false
       '';
     };
+
+  flake.modules.homeManager.herdr-tree = { lib, pkgs, ... }: {
+    key = "${__curPos.file}#homeManager.herdr-tree";
+    imports = [ config.flake.modules.homeManager.herdr ];
+    home.packages = [
+      pkgs.cargo
+      pkgs.rustc
+    ];
+    xdg.configFile."herdr/config.toml".text = lib.mkBefore ''
+      onboarding = false
+
+      [ui.sidebar.agents]
+      rows = [
+        ["state_icon", "$agent_tree_branch", "machine", "workspace", "tab"],
+        ["agent"],
+      ]
+    '';
+  };
 }
