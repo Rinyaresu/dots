@@ -139,16 +139,21 @@
           LoadCredential = [ "admin-hash:/var/lib/pihole-secrets/admin-hash" ];
           RuntimeDirectory = "pihole-cli";
           RuntimeDirectoryMode = "0700";
-          ExecStart = lib.mkForce (
-            pkgs.writeShellScript "pihole-ftl-start" ''
+          ExecStartPre = [
+            (pkgs.writeShellScript "pihole-ftl-validate-credential" ''
               set -euo pipefail
               hash=$(< "$CREDENTIALS_DIRECTORY/admin-hash")
-              # Canonical base64: 16-byte salt and 32-byte digest (including pad bits).
               pattern='^\$BALLOON-SHA256\$v=1\$s=1024,t=32\$[A-Za-z0-9+/]{21}[AQgw]==\$[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$'
               if ! [[ "$hash" =~ $pattern ]]; then
                 echo 'Missing or invalid Pi-hole password hash' >&2
                 exit 1
               fi
+            '')
+          ];
+          ExecStart = lib.mkForce (
+            pkgs.writeShellScript "pihole-ftl-start" ''
+              set -euo pipefail
+              hash=$(< "$CREDENTIALS_DIRECTORY/admin-hash")
               # The upstream CLI needs an ephemeral token. Keep it in tmpfs only.
               ${pkgs.coreutils}/bin/ln -sfn /run/pihole-cli/cli_pw /etc/pihole/cli_pw
               export FTLCONF_webserver_api_pwhash="$hash"
