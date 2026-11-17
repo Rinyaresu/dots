@@ -6,16 +6,31 @@ if (( $# > 1 )) || { (( $# == 1 )) && [[ $1 != --quick ]]; }; then
   exit 2
 fi
 
+phase=export
+started=$SECONDS
+finish_phase() {
+  printf 'CI phase=%s elapsed_seconds=%s status=0\n' "$phase" "$((SECONDS - started))"
+}
+trap 'status=$?; if (( status != 0 )); then printf "CI phase=%s elapsed_seconds=%s status=%s\n" "$phase" "$((SECONDS - started))" "$status" >&2; fi' EXIT
+
 cd "$(dirname "$0")/.."
 source=$(python3 -B scripts/export-source.py)
+finish_phase
 cd "$source"
 printf 'Fonte explícita: %s\n' "$source"
+phase=python
+started=$SECONDS
 python3 -B -m unittest discover -s checks -p '*_test.py'
+finish_phase
 
+phase=formatter
+started=$SECONDS
 flake="path:$PWD"
 find flake.nix modules checks -type f -name '*.nix' -print0 |
   xargs -0 nix --extra-experimental-features 'nix-command flakes' run \
     --no-write-lock-file "$flake#formatter.x86_64-linux" -- --check
+
+finish_phase
 
 if (( $# == 1 )); then
   printf 'Check rápido: formatter pode realizar ou baixar dependências; flake check não executa builders ou VMs.\n'
@@ -23,5 +38,8 @@ if (( $# == 1 )); then
 else
   printf 'Check completo: construir os checks e executar as VMs.\n'
 fi
+phase=nix-checks
+started=$SECONDS
 nix --extra-experimental-features 'nix-command flakes' flake check \
   "$flake" --no-write-lock-file --print-build-logs "$@"
+finish_phase

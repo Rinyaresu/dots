@@ -83,6 +83,13 @@ sys.exit(1 if os.environ.get('FAIL_STAGE') == stage else 0)
         for call in [formatter, check]:
             self.assertIn('--no-write-lock-file', call['args'])
 
+    def test_success_reports_each_phase(self):
+        result = self.run_check('--quick')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for phase in ['export', 'python', 'formatter', 'nix-checks']:
+            self.assertRegex(result.stdout,
+                             rf'CI phase={phase} elapsed_seconds=\d+ status=0')
+
     def test_quick_evaluates_without_building(self):
         result = self.run_check('--quick')
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -110,12 +117,28 @@ sys.exit(1 if os.environ.get('FAIL_STAGE') == stage else 0)
                 self.assertEqual(self.calls(), [])
 
     def test_formatter_failure_stops_before_flake_check(self):
-        self.assertNotEqual(self.run_check(failure='formatter').returncode, 0)
+        result = self.run_check(failure='formatter')
+        self.assertNotEqual(result.returncode, 0)
         self.assertEqual(len(self.calls()), 1)
+        self.assertRegex(result.stderr, r'CI phase=formatter elapsed_seconds=\d+ status=123')
+        self.assertNotIn('CI phase=formatter', result.stdout)
+        self.assertNotIn('CI phase=nix-checks', result.stdout)
 
     def test_builder_failure_is_not_reported_as_success(self):
-        self.assertNotEqual(self.run_check(failure='check').returncode, 0)
+        result = self.run_check(failure='check')
+        self.assertNotEqual(result.returncode, 0)
         self.assertEqual(len(self.calls()), 2)
+        self.assertRegex(result.stderr, r'CI phase=nix-checks elapsed_seconds=\d+ status=1')
+        self.assertNotIn('CI phase=nix-checks', result.stdout)
+
+    def test_python_failure_stops_before_nix(self):
+        (self.root / 'checks/fixture_test.py').write_text(
+            'import unittest\nclass Fixture(unittest.TestCase):\n'
+            '    def test_fixture(self):\n        self.fail("fixture failure")\n')
+        result = self.run_check('--quick')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.calls(), [])
+        self.assertRegex(result.stderr, r'CI phase=python elapsed_seconds=\d+ status=1')
 
     def test_git_invokes_pre_push_and_propagates_failure(self):
         subprocess.run(['git', 'init', '-q', str(self.root)], check=True)

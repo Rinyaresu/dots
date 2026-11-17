@@ -2,12 +2,42 @@ name: Checks
 
 on:
   push:
+    branches: [master]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      build_systems:
+        description: Build desktop, lab and Ordis after the complete checks
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  quick:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.13'
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            max-jobs = 1
+            cores = 2
+      - name: Python, formatting and evaluation (not runtime validation)
+        run: /usr/bin/time -v ./scripts/check --quick
+
   check:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -27,6 +57,11 @@ jobs:
             cores = 2
       - name: Require KVM for VM checks
         run: test -r /dev/kvm && test -w /dev/kvm
+      - name: Record runner resources
+        run: |
+          nproc
+          free -h
+          df -h / /nix
       - name: Reclaim unused SDK space on the disposable runner
         shell: bash
         run: |
@@ -34,4 +69,53 @@ jobs:
           df -h /
           sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /opt/ghc
           df -h /
-      - run: ./scripts/check
+      - name: Identify the exact public Herdr output
+        id: herdr
+        shell: bash
+        run: |
+          source=$(python3 -B scripts/export-source.py)
+          output=$(nix eval --impure --raw --expr \
+            "(builtins.getFlake \"path:$source\").inputs.herdr.packages.x86_64-linux.herdr.outPath")
+          echo "output=$output" >> "$GITHUB_OUTPUT"
+          echo "key=herdr-runtime-v1-${RUNNER_OS}-${RUNNER_ARCH}-${output##*/}" >> "$GITHUB_OUTPUT"
+      - name: Restore only the Herdr runtime binary cache
+        id: herdr-cache
+        continue-on-error: true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/herdr-cache
+          key: ${{ steps.herdr.outputs.key }}
+      - name: Import the trusted branch cache
+        continue-on-error: true
+        if: steps.herdr-cache.outputs.cache-hit == 'true'
+        env:
+          HERDR_OUTPUT: ${{ steps.herdr.outputs.output }}
+        run: |
+          /usr/bin/time -v nix copy --no-check-sigs \
+            --from "file://$RUNNER_TEMP/herdr-cache" "$HERDR_OUTPUT"
+      - name: Complete checks including real VMs
+        run: /usr/bin/time -v ./scripts/check
+      - name: Build all three systems when requested
+        if: github.event_name == 'workflow_dispatch' && inputs.build_systems
+        run: |
+          source=$(python3 -B scripts/export-source.py)
+          /usr/bin/time -v nix build --no-link --no-write-lock-file \
+            "path:$source#nixosConfigurations.desktop.config.system.build.toplevel" \
+            "path:$source#nixosConfigurations.lab.config.system.build.toplevel" \
+            "path:$source#nixosConfigurations.ordis.config.system.build.toplevel"
+      - name: Export only the public Herdr runtime closure
+        id: herdr-export
+        continue-on-error: true
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.herdr-cache.outputs.cache-hit != 'true'
+        env:
+          HERDR_OUTPUT: ${{ steps.herdr.outputs.output }}
+        run: |
+          /usr/bin/time -v nix copy --to "file://$RUNNER_TEMP/herdr-cache" "$HERDR_OUTPUT"
+          du -sh "$RUNNER_TEMP/herdr-cache"
+      - name: Save cache only from successful master pushes
+        continue-on-error: true
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.herdr-export.outcome == 'success'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/herdr-cache
+          key: ${{ steps.herdr.outputs.key }}
