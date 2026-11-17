@@ -1,4 +1,4 @@
-name: Herdr cache benchmark
+name: Warm CI disk benchmark
 
 on:
   push:
@@ -8,13 +8,5 @@ permissions:
   contents: read
 
 jobs:
-  cold:
+  control:
     uses: ./.github/workflows/check.yml
-    with:
-      sample: cold
-
-  warm:
-    needs: cold
-    uses: ./.github/workflows/check.yml
-    with:
-      sample: warm

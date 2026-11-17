@@ -3,9 +3,12 @@ name: Checks
 on:
   workflow_call:
     inputs:
-      sample:
+      min-free-bytes:
         type: string
-        required: true
+        default: '0'
+      min-free-inodes:
+        type: string
+        default: '0'
 
 permissions:
   contents: read
@@ -36,13 +39,22 @@ jobs:
           nproc
           free -h
           df -h / /nix
-      - name: Reclaim unused SDK space on the disposable runner
+      - name: Prepare disk on the disposable runner
         shell: bash
+        env:
+          MIN_FREE_BYTES: ${{ inputs.min-free-bytes }}
+          MIN_FREE_INODES: ${{ inputs.min-free-inodes }}
         run: |
           test "${RUNNER_ENVIRONMENT:-}" = github-hosted
-          df -h /
-          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /opt/ghc
-          df -h /
+          python3 -B .github/scripts/disk_budget.py snapshot before-cleanup || echo 'No pre-cleanup measurement'
+          decision=$(python3 -B .github/scripts/disk_budget.py choose \
+            --min-bytes="$MIN_FREE_BYTES" --min-inodes="$MIN_FREE_INODES") || decision=clean
+          printf 'disk_budget decision=%s min_bytes=%s min_inodes=%s\n' \
+            "$decision" "$MIN_FREE_BYTES" "$MIN_FREE_INODES"
+          if [[ "$decision" != skip ]]; then
+            sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          fi
+          python3 -B .github/scripts/disk_budget.py snapshot after-cleanup
       - name: Identify the exact public Herdr output
         id: herdr
         shell: bash
@@ -58,29 +70,26 @@ jobs:
             exit 1
           fi
           echo "output=$out_path" >> "$GITHUB_OUTPUT"
-          echo "key=herdr-benchmark-v1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${out_path##*/}" >> "$GITHUB_OUTPUT"
+          echo "key=herdr-benchmark-v1-44187548544-1-${out_path##*/}" >> "$GITHUB_OUTPUT"
       - name: Restore only the Herdr runtime binary cache
         id: herdr-cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ${{ runner.temp }}/herdr-cache
           key: ${{ steps.herdr.outputs.key }}
-      - name: Require the expected cache state
+      - name: Require an exact cache hit before running the suite
         env:
-          SAMPLE: ${{ inputs.sample }}
           EXACT_HIT: ${{ steps.herdr-cache.outputs.cache-hit }}
           MATCHED_KEY: ${{ steps.herdr-cache.outputs.cache-matched-key }}
           EXPECTED_KEY: ${{ steps.herdr.outputs.key }}
         run: |
-          printf 'sample=%s exact_hit=%s matched_key=%s expected_key=%s\n' \
-            "$SAMPLE" "$EXACT_HIT" "$MATCHED_KEY" "$EXPECTED_KEY"
-          case "$SAMPLE" in
-            cold) test "$EXACT_HIT" != true && test -z "$MATCHED_KEY" ;;
-            warm) test "$EXACT_HIT" = true && test "$MATCHED_KEY" = "$EXPECTED_KEY" ;;
-            *) exit 1 ;;
-          esac
+          printf 'exact_hit=%s matched_key=%s expected_key=%s\n' \
+            "$EXACT_HIT" "$MATCHED_KEY" "$EXPECTED_KEY"
+          test "$EXACT_HIT" = true && test "$MATCHED_KEY" = "$EXPECTED_KEY" || {
+            echo 'Exact Herdr cache unavailable; refusing to run a cold suite' >&2
+            exit 1
+          }
       - name: Import and verify the exact Herdr output
-        if: inputs.sample == 'warm'
         env:
           HERDR_OUTPUT: ${{ steps.herdr.outputs.output }}
         run: |
@@ -89,21 +98,4 @@ jobs:
           nix-store --check-validity "$HERDR_OUTPUT"
           printf 'Herdr import verified: %s\n' "$HERDR_OUTPUT"
       - name: Complete checks including real VMs
-        run: /usr/bin/time -v ./scripts/check
-      - name: Record disk space after the suite
-        run: df -h / /nix
-      - name: Export only the public Herdr runtime closure
-        if: inputs.sample == 'cold'
-        env:
-          HERDR_OUTPUT: ${{ steps.herdr.outputs.output }}
-        run: |
-          /usr/bin/time -v nix copy --to "file://$RUNNER_TEMP/herdr-cache" "$HERDR_OUTPUT"
-          nix path-info --closure-size "$HERDR_OUTPUT"
-          find "$RUNNER_TEMP/herdr-cache" -type f -printf '%s\n' |
-            awk '{bytes += $1} END {printf "exported_file_bytes=%.0f\n", bytes}'
-      - name: Save cache only after the successful cold sample
-        if: inputs.sample == 'cold' && github.repository == 'Rinyaresu/dots' && github.event_name == 'push' && github.ref == 'refs/heads/perf/herdr-cache-benchmark'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
-        with:
-          path: ${{ runner.temp }}/herdr-cache
-          key: ${{ steps.herdr.outputs.key }}
+        run: python3 -B .github/scripts/disk_budget.py watch -- /usr/bin/time -v ./scripts/check
