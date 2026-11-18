@@ -1,5 +1,5 @@
 {
-  flake.modules.nixos.host-lab = { config, lib, ... }: {
+  configurations.nixos.lab.modules.configuration = { config, lib, ... }: {
     nixpkgs.hostPlatform = "x86_64-linux";
     networking.hostName = "nixos-lab";
     system.stateVersion = "26.05";

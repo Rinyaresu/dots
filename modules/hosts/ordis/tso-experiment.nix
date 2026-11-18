@@ -1,5 +1,5 @@
 {
-  flake.modules.nixos.host-ordis = {
+  configurations.nixos.ordis.modules.tso-experiment = {
     # Preserve the existing generated connection identity and IP defaults.
     # Unlike ensureProfiles, /etc keyfiles exist before NetworkManager starts.
     environment.etc."NetworkManager/system-connections/Wired connection 1.nmconnection" = {

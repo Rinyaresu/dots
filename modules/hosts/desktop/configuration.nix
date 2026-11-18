@@ -1,5 +1,5 @@
 {
-  flake.modules.nixos.host-desktop = {
+  configurations.nixos.desktop.modules.configuration = {
     networking.hostName = "desktop";
     system.stateVersion = "26.05";
     boot.loader.timeout = 5;

@@ -1,11 +1,11 @@
-{ nixos }:
+{ ordisModules }:
 {
   name = "ordis-tailscale-firewall";
   # The real host declares nixpkgs.hostPlatform and nixpkgs.config itself.
   node.pkgsReadOnly = false;
 
   nodes.machine = { lib, pkgs, ... }: {
-    imports = [ nixos.host-ordis ];
+    imports = ordisModules;
     # The VM has no physical eno1; the test creates it and the overlay as
     # veth peers in isolated namespaces. No Tailscale identity is provisioned.
     virtualisation.vlans = lib.mkForce [ ];

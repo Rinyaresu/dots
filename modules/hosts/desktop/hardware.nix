@@ -1,5 +1,5 @@
 {
-  flake.modules.nixos.host-desktop = { lib, ... }: {
+  configurations.nixos.desktop.modules.hardware = { lib, ... }: {
     nixpkgs.hostPlatform = "x86_64-linux";
     hardware.enableRedistributableFirmware = true;
     hardware.cpu.amd.updateMicrocode = true;

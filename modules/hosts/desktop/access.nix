@@ -1,5 +1,5 @@
 {
-  flake.modules.nixos.host-desktop = { lib, ... }: {
+  configurations.nixos.desktop.modules.access = { lib, ... }: {
     services.openssh = {
       enable = true;
       openFirewall = false;

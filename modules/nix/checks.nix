@@ -268,13 +268,16 @@ let
       lab
       ordis
     ];
-    no-legacy-groups =
-      builtins.all (name: !(builtins.hasAttr name nixos) && !(builtins.hasAttr name home))
-        [
-          "base"
-          "gui"
-          "development"
-        ];
+    named-group-boundaries =
+      nixos ? common
+      && !(home ? common)
+      && !(nixos ? development)
+      && !(home ? development)
+      && builtins.all (name: builtins.hasAttr name nixos && builtins.hasAttr name home) [
+        "base"
+        "gui"
+        "desktop-personal"
+      ];
     real-host-assertions = builtins.all (c: builtins.all (a: a.assertion) c.assertions) [
       desktop
       lab

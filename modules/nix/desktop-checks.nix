@@ -13,7 +13,7 @@ let
   optedIn = inputs.nixpkgs.lib.nixosSystem {
     modules = [
       nixos.nix-settings
-      (import ../hosts/desktop/maintenance.nix).flake.modules.nixos.host-desktop
+      (import ../hosts/desktop/maintenance.nix).configurations.nixos.desktop.modules.maintenance
       {
         nixpkgs.hostPlatform = "x86_64-linux";
         nix.gc.automatic = lib.mkForce true;

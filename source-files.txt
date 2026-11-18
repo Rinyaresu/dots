@@ -87,6 +87,7 @@ modules/nix/checks.nix
 modules/nix/desktop-checks.nix
 modules/nix/graphical-checks.nix
 modules/nix/home-manager.nix
+modules/nix/host-groups.nix
 modules/nix/migration-checks.nix
 modules/nix/module-system-checks.nix
 modules/nix/nixos-configurations.nix

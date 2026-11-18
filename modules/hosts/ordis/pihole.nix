@@ -1,6 +1,6 @@
 { config, ... }:
 {
-  flake.modules.nixos.host-ordis = { pkgs, ... }: {
+  configurations.nixos.ordis.modules.pihole-local = { pkgs, ... }: {
     imports = [ config.flake.modules.nixos.pihole ];
 
     services.pihole-ftl = {

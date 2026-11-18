@@ -1,13 +1,5 @@
-{ config, ... }:
 {
-  flake.modules.nixos.host-ordis = { pkgs, ... }: {
-    imports = with config.flake.modules.nixos; [
-      nix-settings
-      networking
-      locale
-      sudo
-      tailscale
-    ];
+  configurations.nixos.ordis.modules.configuration = { pkgs, ... }: {
     networking.hostName = "ordis";
 
     boot.initrd.systemd.enable = true;
