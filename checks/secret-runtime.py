@@ -183,7 +183,7 @@ keep = max(map(len, needles)) - 1
 required = {
     str(Path('/etc/secret-runtime-manifest.json').resolve()),
     str(Path('/etc/secret-runtime-activation/activate').resolve()),
-    str(Path('/etc/secret-runtime-source/secrets/ssh.yaml').resolve()),
+    str(Path('/etc/secret-runtime-ciphertext').resolve()),
 }
 import json
 manifest = json.loads(Path('/etc/secret-runtime-manifest.json').read_text())

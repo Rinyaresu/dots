@@ -1,7 +1,18 @@
 { config, ... }:
 {
-  configurations.nixos.ordis.modules.pihole-local = { pkgs, ... }: {
+  configurations.nixos.ordis.modules.pihole-local = { config, pkgs, ... }: {
     imports = [ config.flake.modules.nixos.pihole ];
+
+    assertions = [
+      {
+        assertion =
+          config.services.pihole-web.ports == "127.0.0.1:8080"
+          && !config.services.pihole-ftl.openFirewallDNS
+          && !config.services.pihole-ftl.openFirewallWebserver
+          && !config.services.pihole-ftl.openFirewallDHCP;
+        message = "Pi-hole administration must stay on loopback and must not open the global firewall.";
+      }
+    ];
 
     services.pihole-ftl = {
       settings.dns.interface = "eno1";

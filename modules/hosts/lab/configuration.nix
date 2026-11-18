@@ -22,8 +22,20 @@
     };
     assertions = [
       {
-        assertion = !config.virtualisation.mountHostNixStore;
-        message = "The lab must not mount the host store.";
+        assertion =
+          !config.virtualisation.mountHostNixStore
+          && config.virtualisation.useNixStoreImage
+          && config.virtualisation.sharedDirectories == { }
+          && config.virtualisation.restrictNetwork
+          && config.virtualisation.qemu.networkingOptions == [ "-nic none" ];
+        message = "The lab requires a separate store image, no shared directories and no network.";
+      }
+      {
+        assertion =
+          (config.sops.secrets or { }) == { }
+          && !config.services.tailscale.enable
+          && !(config.home-manager.users.rinyaresu.systemd.user.services ? pi-config-restore);
+        message = "The lab must not receive personal secrets, bootstrap or overlay access.";
       }
     ];
   };

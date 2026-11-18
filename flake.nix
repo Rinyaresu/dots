@@ -21,7 +21,20 @@
     inputs:
     inputs.flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [ "x86_64-linux" ];
-      perSystem = { pkgs, ... }: { formatter = pkgs.nixfmt; };
+      perSystem = { lib, pkgs, ... }: {
+        formatter = pkgs.nixfmt;
+        checks.formatting =
+          let
+            source = lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.fileFilter (file: file.hasExt "nix") ./.;
+            };
+          in
+          pkgs.runCommand "nixfmt-check" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
+            find ${source} -type f -name '*.nix' -print0 | xargs -0 nixfmt --check
+            touch "$out"
+          '';
+      };
       imports = [
         inputs.flake-parts.flakeModules.modules
         (inputs.import-tree ./modules)

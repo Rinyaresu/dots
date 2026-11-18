@@ -8,11 +8,6 @@ checks/desktop-access.py
 checks/desktop-snapshots.nix
 checks/desktop-snapshots.py
 checks/graphical-behavior.py
-checks/graphical.nix
-checks/modules/factory.nix
-checks/modules/more.nix
-checks/modules/path.nix
-checks/modules/publications.nix
 checks/pihole-argv.py
 checks/pihole-provision.py
 checks/pihole.nix
@@ -44,8 +39,6 @@ modules/nix/checks.nix
 modules/nix/desktop-checks.nix
 modules/nix/graphical-checks.nix
 modules/nix/home-manager.nix
-modules/nix/migration-checks.nix
-modules/nix/module-system-checks.nix
 modules/nix/nix-settings.nix
 modules/nix/nixos-configurations.nix
 modules/nix/pihole-checks.nix
