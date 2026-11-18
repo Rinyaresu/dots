@@ -26,9 +26,6 @@ checks/ssh-session.nix
 checks/tailscale.nix
 flake.lock
 flake.nix
-modules/features/pihole/admin-hash.py
-modules/features/pihole/api-no-argv-secrets.patch
-modules/features/pihole/default.nix
 modules/hosts/desktop/access.nix
 modules/hosts/desktop/configuration.nix
 modules/hosts/desktop/hardware.nix
@@ -55,6 +52,9 @@ modules/nix/pihole-checks.nix
 modules/nix/secret-checks.nix
 modules/nix/session-checks.nix
 modules/nix/tailscale-checks.nix
+modules/server/networking/pihole/admin-hash.py
+modules/server/networking/pihole/api-no-argv-secrets.patch
+modules/server/networking/pihole/default.nix
 modules/system/boot/limine.nix
 modules/system/interfaces/bluetooth.nix
 modules/system/interfaces/cli/ai/pi.nix
