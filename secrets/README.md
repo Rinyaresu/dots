@@ -1,91 +1,35 @@
-# Provisionar SSH com ciphertext público
+# Credenciais e recuperação
 
-Somente o desktop seleciona `nixos.rinyaresu-ssh` e
-`homeManager.rinyaresu-ssh`. Lab e Ordis não recebem a chave pessoal.
-Avaliação e build não dependem do Home privado, agente pessoal ou credenciais.
+## Provisionar SOPS e SSH do desktop
 
-## Fronteira de fonte e runtime
+Antes de instalar, confirme em outro aparelho que consegue recuperar a identidade age sem depender da chave SSH que ela protege. Preserve uma revisão conhecida e seu `secrets/ssh.yaml`. Só esse ciphertext revisado pode entrar em Git e no store. Não rastreie identidades, backups, senhas, chaves, tokens ou estado de serviços. Metadados dos destinatários ficam legíveis e cópias antigas do ciphertext podem sobreviver.
 
-| Material | Local | Exposição |
-| --- | --- | --- |
-| Documento SOPS com campo `ssh_private_key` | `secrets/ssh.yaml` | Público, inclusive destinatários e metadados. Pode entrar no store. |
-| Identidade age | `/var/lib/sops-nix/key.txt` | Externa, root:root 0600, diretório root:root 0700. Nunca Git ou store. |
-| Chave SSH com sua passphrase preservada | `/run/secrets/rinyaresu-ssh-key` | Runtime, rinyaresu:users 0600. Nunca entrada de build. |
-| Link da home | `~/.ssh/id_ed25519` | Home Manager cria indireção para o segredo runtime, não uma cópia da chave no store. |
+No [instalador autorizado](../README.md#instalar-ou-recuperar-o-desktop), com os volumes já montados, provisione o arquivo regular `/mnt/var/lib/sops-nix/key.txt` como root:root 0600, em diretório root:root 0700. No sistema iniciado, o caminho não tem o prefixo `/mnt`. Confira origem e metadados sem imprimir conteúdo. O preflight recusa arquivo ausente, vazio, symlink ou metadados inseguros. Não gere identidade substituta: uma nova não decifra dados existentes, e a chave do host não é fallback.
 
-O exportador aceita somente o caminho SOPS listado acima. Essa exceção não permite
-outros YAML, backups, plaintext ou identidades privadas na fonte.
-
-`sops.validateSopsFiles = true` valida o documento cifrado no build, sem usar a
-identidade age. Isso não prova recuperação ou descriptografia. A identidade não
-é gerada automaticamente e chaves SSH do host não são fallback.
-
-O preflight recusa identidade ausente, vazia, symlink, dono ou grupo diferente
-de root, ou modo diferente de 0600. SOPS real recusa identidade incapaz de decifrar.
-Home Manager depende de sucesso da unidade SOPS. Um arquivo regular já existente
-em `~/.ssh/id_ed25519` não é substituído silenciosamente. `~/.ssh` fica em 0700.
-
-Ciphertext é diferente de plaintext, mas sua publicação é permanente. Metadados
-permitem correlação e cópias antigas podem sobreviver a mudanças de destinatários.
-Aprovar uma versão não aprova outras versões ou inventário histórico.
-
-## Preparar uma instalação autorizada
-
-Recupere a identidade age por canal independente da chave SSH que será restaurada.
-O ciphertext já acompanha a revisão pública. Não é necessário clonar Home ou
-Agent por SSH para obter o material que recupera essa mesma chave.
-
-Confirme a recuperação em outro aparelho antes de substituir qualquer sistema.
-Depois dos volumes autorizados montados, provisione a identidade em
-`/mnt/var/lib/sops-nix/key.txt`, preservando os donos e modos descritos acima.
-Confira metadados e origem sem imprimir o conteúdo. Não copie uma identidade
-pessoal para teste. Siga [o guia de instalação](../docs/instalacao.md).
-
-O instalador executa ativação no chroot. Este perfil, porém, descriptografa por
-serviço systemd no sistema iniciado. Não trate `nixos-install` como prova de SOPS.
-No primeiro boot, confira as unidades `sops-install-secrets.service` e
-`home-manager-rinyaresu.service`. Se SOPS falhar, corrija a origem e metadados da
-identidade sem gerar outra como substituta. Depois, reinicie SOPS e HM no target
-somente com autorização operacional. O contrato completo está em
-[bootstrap](../docs/bootstrap.md).
-
-A chave mantém sua passphrase. GNOME Keyring, agente SSH e Bitwarden têm
-responsabilidades distintas. O agente OpenSSH pede a passphrase e reutiliza a
-identidade carregada. Bitwarden é recuperação, não agente SSH.
-
-## Editar o ciphertext
-
-Use uma cópia revisada da fonte e uma identidade autorizada fora do checkout.
-Para editar o documento existente, SOPS usa os destinatários nos seus metadados.
-Não é necessário um input privado de flake ou uma regra `.sops.yaml` pública.
-
-O caminho abaixo é um placeholder, não material de recuperação.
+Para editar o ciphertext existente, use a identidade autorizada **fora** do checkout. SOPS usa os destinatários do documento:
 
 ```sh
 SOPS_AGE_KEY_FILE=/CAMINHO_PRIVADO/key.txt sops secrets/ssh.yaml
 ```
 
-Use editor sem backups ou swap de plaintext. Confira que o resultado continua
-cifrado e que não há arquivos temporários privados no checkout antes de exportar,
-comitar ou construir. Nunca passe a identidade ou chave privada como opção Nix.
-Revisar e construir a mudança não autoriza publicação ou ativação.
+Use editor sem backups ou swap em plaintext. Antes de comitar ou construir, confirme que o documento continua cifrado e que não sobraram temporários. Preserve a passphrase da chave SSH. Para trocar destinatários, mantenha uma identidade que ainda decifra ou uma cópia recuperável do material original; valide a recuperação antes de retirar a antiga. Em caso de exposição, revogue as autorizações da chave nos serviços externos e substitua-a; recifrar não revoga cópias antigas. Uma falha de SOPS também não remove uma chave já carregada do agente: remova-a explicitamente na sessão autorizada.
 
-Trocar destinatários exige uma identidade ainda capaz de decifrar, ou uma cópia
-recuperável do material original. Gerar uma identidade nova não recupera dados
-cifrados para uma identidade perdida. Preserve recuperação independente antes
-de trocar destinatários ou chaves. Cópias antigas não são revogadas por Git.
+O desktop não usa LUKS: acesso físico offline pode expor dados e a identidade age instalada. SOPS não substitui criptografia de disco; a chave SSH decifrada ainda tem passphrase. Rollback Nix não recupera identidade perdida. Guarde backup independente da identidade, senhas e revisão correspondente; BitLocker é recuperação separada.
 
-## Recuperação e proteção instalada
+## Primeiro login e bootstrap
 
-Mantenha backup independente da identidade age, das senhas e de uma revisão
-conhecida com seu ciphertext. Perder a identidade não é resolvido por rollback Nix.
-A recuperação BitLocker é um requisito físico separado, não entrada do SOPS.
+1. Após boot, confira `sops-install-secrets.service` e `home-manager-rinyaresu.service` com `systemctl status`, sem publicar logs privados. SOPS falho impede HM, não necessariamente o boot. Corrija origem, destinatário ou metadados e, só no alvo autorizado, reinicie SOPS antes de HM. O segredo fica em `/run/secrets/rinyaresu-ssh-key` (rinyaresu:users 0600), com link `~/.ssh/id_ed25519` e diretório 0700. Se houver arquivo regular conflitante, inspecione e preserve antes de resolver; não sobrescreva.
+2. Entre com a senha local, inicie a sessão gráfica e aceite o askpass com a passphrase SSH. Se cancelar, o bootstrap espera sem repetir o prompt nesse processo: carregue a chave com `ssh-add ~/.ssh/id_ed25519` na própria sessão ou reinicie explicitamente o serviço de usuário após corrigir o problema. Confira `ssh-add -l` (em particular numa pane Herdr nova e numa existente). Outra identidade não libera o bootstrap. Bloquear a tela não descarrega a chave; encerrar o agente exige novo desbloqueio. GNOME Keyring usa a senha de sessão e pode pedir desbloqueio separado. Bitwarden não substitui o agente SSH.
+3. Com rede e autorização GitHub, confira `journalctl --user -u pi-config-restore` localmente. O bootstrap restaura Home antes de Agent e exige `references/personal.md` em Home. Ele tenta novamente após falha de clone, preserva destinos existentes e não faz pull. Antes de abrir Pi, espere concluir ou revise os destinos existentes (`~/personal/home` e `~/.pi`), inclusive symlinks ou diretórios incompletos. Git não recupera autenticação, sessões ou arquivos ignorados: refaça autorizações externas separadamente.
 
-O desktop não usa LUKS. Alguém com leitura física offline pode obter a identidade
-age instalada e decifrar o documento. SOPS não substitui criptografia de disco.
-A passphrase SSH continua protegendo a chave decifrada, mas não torna a identidade
-age pública. Gerações e snapshots locais não substituem recuperação fora do disco.
+O build valida o ciphertext, não a descriptografia. VMs e checks usam material descartável e não comprovam askpass visível, cofres reais ou acesso GitHub.
 
-Uma falha posterior de SOPS não revoga automaticamente uma chave já carregada no
-agente. Remoção da identidade no agente e revogação em serviços externos são
-operações próprias, não efeitos prometidos por este provisionamento.
+## Provisionar e recuperar Pi-hole
+
+Siga primeiro os [gates de Ordis](../README.md#manter-ordis). Em console ou sessão administrativa autorizada, use `sudo pihole-admin-hash` para provisionar ou rotacionar. Digite e confirme a senha interativamente. Não passe a senha por argumentos ou histórico, nem use tracing. O utilitário substitui atomicamente `/var/lib/pihole-secrets/admin-hash` (hash Balloon-SHA256 v6, root:root 0600, diretório 0700). Confira metadados: o validador de partida checa o formato, não dono/modo. Guarde a senha em recuperação privada independente.
+
+A rotação só entra em uso após reiniciar `pihole-ftl.service` com autorização. Confira FTL e `pihole-ftl-setup.service`; sem hash válido, não contorne a recusa nem tente forçar alteração do gravity. Administre pelo loopback via túnel, por exemplo `ssh -N -L 127.0.0.1:8080:127.0.0.1:8080 <conta>@<ordis>` (substitua os placeholders), e abra `http://127.0.0.1:8080/`. Valide recusa sem autenticação e login com a nova senha. Não abra o painel na rede.
+
+De um cliente LAN autorizado, compare o resultado de um nome permitido e um bloqueado com `dig @ENDERECO_LAN NOME` e `dig +tcp @ENDERECO_LAN NOME`. Confirme recusa a partir de rede/interface não autorizada, inclusive IPv6 como transporte; uma consulta AAAA via IPv4 é diferente. Confira o resolvedor do servidor de forma independente. Consulte [a política do host](../modules/hosts/ordis/pihole.nix) em vez de inferir alcance a partir de uma VM.
+
+Antes de upgrade ou recuperação, pare os serviços com autorização e guarde cópia consistente dos bancos, hash e revisão em armazenamento privado protegido. Não copie SQLite ativo sem mecanismo transacional. Se setup ou swap do gravity falhar, preserve o estado e investigue antes de tentar novamente. Rollback Nix não remove listas persistentes, não reverte hash e pode ser incompatível com banco migrado. Para recuperar, use a revisão e a cópia compatíveis, confirme permissões, reinicie só com autorização e repita as verificações de DNS e autenticação. Não publique logs, histórico DNS ou backups.

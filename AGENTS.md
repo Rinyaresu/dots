@@ -7,10 +7,8 @@
 - Selecione capacidades em `modules/hosts/<host>/modules.nix`. O montador usa as chaves diretas de `configurations.nixos.<host>.modules` para associar Home Manager, nunca nomes transitivos. Associe a conta NixOS local via `homeUser`. Preserve separadamente `system.stateVersion` e `home.stateVersion`.
 - `common` é só NixOS; `base` reúne a base de CLI, `gui` os gráficos, e `desktop-personal` é exclusivo do desktop. Lab deve permanecer sem store, diretórios, chaves ou rede compartilhados com o host; Ordis não recebe Home Manager nem a conta pessoal.
 
-## Verificar sem ativar
+## Verificar e operar
 
-- Revise os arquivos rastreados antes de avaliar. Nix usa a fonte Git; alterações de arquivos rastreados numa árvore suja também podem entrar. Para evidência de entrega, execute em checkout limpo e registre o SHA. Não use `path:` para contornar esse recorte.
-- Não inclua chaves privadas, identidades age, tokens, estado pessoal ou material de recuperação na fonte, store, logs ou artefatos. Apenas o ciphertext SOPS revisado de `secrets/ssh.yaml` é autorizado. Para provisionamento ou recuperação de credenciais, leia [secrets/README.md](secrets/README.md).
-- Execute `nix flake check --show-trace` e construa os toplevels afetados com `nix build --no-link .#nixosConfigurations.<host>.config.system.build.toplevel`. Formate arquivos Nix com `nix fmt -- <arquivo.nix>`.
-- Para mudanças em contratos de runtime, execute as [VMs pertinentes](README.md#verificar-sem-ativar) com KVM. Build não comprova comportamento em runtime ou em hardware físico.
-- Autorização para editar, construir ou publicar não inclui merge, deploy, ativação, reboot, operação remota ou mudança de visibilidade. Para operação autorizada em Ordis, leia [docs/ordis.md](docs/ordis.md).
+- Use os [gates nativos do README](README.md#verificar-sem-ativar). Para evidência, registre o SHA de uma fonte Git limpa; não use `path:` para contornar o recorte. Rode VMs pertinentes em KVM somente quando o contrato de runtime ou a derivação for afetado. Build não comprova hardware ou serviços reais.
+- Mantenha chaves privadas, identidades age, tokens, estado pessoal e recuperação fora de Git, store, logs e artefatos. A exceção é o ciphertext revisado de `secrets/ssh.yaml`. Para provisionar, rotacionar ou recuperar, leia [o guia de credenciais](secrets/README.md).
+- Edição, build e publicação não autorizam merge, deploy, ativação, reboot, operação remota ou mudança de visibilidade. Para instalação, operação ou recuperação autorizada, use [o procedimento do host](README.md).
