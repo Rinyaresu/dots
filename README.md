@@ -11,42 +11,32 @@ O lock fixa as dependências. O repositório publica três sistemas independente
 
 ## Verificar sem ativar
 
-Use Linux x86_64, Nix com flakes, Bash, Python 3 e Git. KVM permite executar os
-checks de integração em VMs descartáveis.
+Use Linux x86_64 com Git e Nix (flakes). Revise os arquivos rastreados e use
+um checkout limpo para vincular a verificação a um commit. Nix copia o snapshot
+Git para o store, inclusive documentação rastreada. Não rastreie credenciais
+ou estado privado.
 
 ```sh
-./scripts/check --quick
-./scripts/check
-source=$(python3 -B scripts/export-source.py)
-nix --extra-experimental-features 'nix-command flakes' build --no-link --no-write-lock-file \
-  "path:$source#nixosConfigurations.desktop.config.system.build.toplevel" \
-  "path:$source#nixosConfigurations.lab.config.system.build.toplevel" \
-  "path:$source#nixosConfigurations.ordis.config.system.build.toplevel"
+nix flake check --show-trace
+for host in desktop lab ordis; do
+  nix build --no-link ".#nixosConfigurations.$host.config.system.build.toplevel"
+done
 ```
 
-`scripts/check` exporta somente os arquivos enumerados em `source-files.txt`.
-A exportação usa os bytes atuais, inclusive alterações ainda não commitadas.
-Documentação, arquivos ignorados e histórico Git não entram nessa exportação.
-O único documento SOPS permitido é `secrets/ssh.yaml`, cifrado e revisado.
-Revise a lista ao acrescentar arquivos consumidos pelo flake ou pelos testes.
-O exportador recusa caminhos privados, travessia de diretórios e symlinks.
+Formate com `nix fmt -- flake.nix` (ou passe os arquivos alterados). A CI testa
+o merge sintético de PRs para `master` e a revisão de cada push a `master`, com
+checks leves e uma matriz de hosts descoberta a partir do flake.
 
-Cada exportação fica em `~/.local/state/pi/work-artifacts/nix/check-source-*/`.
-`manifest.json`, fora da fonte exportada, registra hashes e permissões executáveis.
-Use esse conteúdo para identificar a revisão realmente testada. Não execute Nix
-com `path:$PWD` sobre uma árvore que contenha planejamento, backups ou segredos.
-`.gitignore` não filtra fontes `path:`.
+Os testes de runtime são separados. Execute com KVM, individualmente:
 
-O modo rápido executa testes Python, formatter e avaliação dos checks. O formatter
-pode realizar ou baixar dependências. `flake check --no-build` não executa os
-builders dos checks ou suas VMs. O modo completo os executa. Nenhum dos modos
-substitui o build dos três sistemas acima ou a validação física.
+```sh
+for test in desktop-access desktop-snapshots tailscale pihole secret-runtime bootstrap-runtime ssh-session; do
+  nix build --no-link --rebuild -L ".#packages.x86_64-linux.$test" || exit
+done
+```
 
-O workflow `Checks` executa `./scripts/check` em push e pull request. Não aplica
-sistemas e não usa credenciais pessoais. Os builds completos dos três hosts são
-uma verificação separada. Para instalar o hook rápido neste checkout, execute
-`git config --local core.hooksPath .githooks`. O hook examina a árvore de trabalho
-atual, não cada ref enviada, e não substitui o CI.
+Nenhum desses comandos ativa um sistema. Procedimentos em `docs/` que ainda
+mencionam o wrapper antigo devem usar os comandos nativos acima.
 
 ## Usar e manter
 
@@ -72,4 +62,4 @@ agentes. Não execute garbage collection durante instalação ou recuperação.
 Preserve `system.stateVersion` e `home.stateVersion` nas atualizações.
 
 Leia [AGENTS.md](AGENTS.md) antes de alterar composição. Use imports nativos.
-Não há registro de usuários ou mecanismo próprio de associação entre classes.
+O montador associa Home Manager pelas chaves selecionadas diretamente pelo host.
