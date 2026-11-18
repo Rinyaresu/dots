@@ -1,8 +1,11 @@
 name: Checks
 
 on:
-  push:
   pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,28 +13,77 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
-        with:
-          python-version: '3.13'
-      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
-        with:
-          enable_kvm: true
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            max-jobs = 1
-            cores = 2
-      - name: Require KVM for VM checks
-        run: test -r /dev/kvm && test -w /dev/kvm
-      - name: Reclaim unused SDK space on the disposable runner
-        shell: bash
+      - name: Verify checkout
         run: |
-          test "${RUNNER_ENVIRONMENT:-}" = github-hosted
-          df -h /
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git log -1 --format='Tested commit: %H (parents: %P)'
+          test -z "$(git status --porcelain)"
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
+      - run: nix flake check --show-trace --no-write-lock-file -L
+
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.hosts.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify checkout
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git log -1 --format='Tested commit: %H (parents: %P)'
+          test -z "$(git status --porcelain)"
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
+      - name: Discover hosts and platforms
+        id: hosts
+        run: |
+          matrix=$(nix eval --no-write-lock-file --json .#nixosConfigurations --apply '
+            configs: builtins.map (host:
+              let system = configs.${host}.config.nixpkgs.hostPlatform.system;
+              in {
+                inherit host system;
+                runner = {
+                  x86_64-linux = "ubuntu-24.04";
+                  aarch64-linux = "ubuntu-24.04-arm";
+                }.${system};
+              }
+            ) (builtins.attrNames configs)
+          ')
+          jq -e 'length > 0' <<< "$matrix" >/dev/null
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  builds:
+    name: Build ${{ matrix.host }} (${{ matrix.system }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify checkout
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git log -1 --format='Tested commit: %H (parents: %P)'
+          test -z "$(git status --porcelain)"
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
+      - name: Reclaim unused SDK space
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
           sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /opt/ghc
           df -h /
-      - run: ./scripts/check
+      - name: Build NixOS toplevel
+        env:
+          HOST: ${{ matrix.host }}
+        run: nix build --no-link --no-write-lock-file -L ".#nixosConfigurations.${HOST}.config.system.build.toplevel"
