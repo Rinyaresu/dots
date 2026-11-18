@@ -59,7 +59,7 @@ in
       '';
     };
 
-  flake.modules.homeManager.herdr-tree = { lib, pkgs, ... }: {
+  flake.modules.homeManager.desktop-personal = { lib, pkgs, ... }: {
     key = "${__curPos.file}#homeManager.herdr-tree";
     imports = [ config.flake.modules.homeManager.herdr ];
     home.packages = [
@@ -79,8 +79,5 @@ in
 
   flake.modules.homeManager.base = {
     imports = [ config.flake.modules.homeManager.herdr ];
-  };
-  flake.modules.homeManager.desktop-personal = {
-    imports = [ config.flake.modules.homeManager.herdr-tree ];
   };
 }

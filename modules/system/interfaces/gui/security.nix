@@ -1,8 +1,7 @@
-{ config, ... }:
 {
-  flake.modules.nixos.polkit.key = "${__curPos.file}#nixos.polkit";
-  flake.modules.nixos.polkit.security.polkit.enable = true;
-  flake.modules.homeManager.polkit = { pkgs, ... }: {
+  flake.modules.nixos.gui.key = "${__curPos.file}#nixos.polkit";
+  flake.modules.nixos.gui.security.polkit.enable = true;
+  flake.modules.homeManager.gui = { pkgs, ... }: {
     key = "${__curPos.file}#homeManager.polkit";
     systemd.user.services.polkit-gnome-authentication-agent = {
       Unit = {
@@ -18,12 +17,5 @@
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
-  };
-
-  flake.modules.nixos.gui = {
-    imports = [ config.flake.modules.nixos.polkit ];
-  };
-  flake.modules.homeManager.gui = {
-    imports = [ config.flake.modules.homeManager.polkit ];
   };
 }

@@ -1,6 +1,6 @@
 { config, ... }:
 {
-  flake.modules.homeManager.providers = {
+  flake.modules.homeManager.base = {
     key = "${__curPos.file}#homeManager.providers";
     imports = [ config.flake.modules.homeManager.fish ];
     programs.mise = {
@@ -22,9 +22,5 @@
       enableFishIntegration = true;
       mise.enable = false;
     };
-  };
-
-  flake.modules.homeManager.base = {
-    imports = [ config.flake.modules.homeManager.providers ];
   };
 }

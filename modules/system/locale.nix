@@ -1,6 +1,5 @@
-{ config, ... }:
 {
-  flake.modules.nixos.locale = {
+  flake.modules.nixos.common = {
     key = "${__curPos.file}#nixos.locale";
     time.timeZone = "America/Sao_Paulo";
     i18n = {
@@ -17,9 +16,5 @@
       layout = "us";
       variant = "intl";
     };
-  };
-
-  flake.modules.nixos.common = {
-    imports = [ config.flake.modules.nixos.locale ];
   };
 }

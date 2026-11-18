@@ -1,6 +1,5 @@
-{ config, ... }:
 {
-  flake.modules.nixos.toolchain = { pkgs, ... }: {
+  flake.modules.nixos.base = { pkgs, ... }: {
     key = "${__curPos.file}#nixos.toolchain";
     programs.nix-ld = {
       enable = true;
@@ -44,9 +43,5 @@
         libffi
       ];
     };
-  };
-
-  flake.modules.nixos.base = {
-    imports = [ config.flake.modules.nixos.toolchain ];
   };
 }

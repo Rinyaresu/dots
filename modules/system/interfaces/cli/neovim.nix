@@ -1,6 +1,5 @@
-{ config, ... }:
 {
-  flake.modules.homeManager.neovim = { pkgs, ... }: {
+  flake.modules.homeManager.base = { pkgs, ... }: {
     key = "${__curPos.file}#homeManager.neovim";
     programs.neovim = {
       enable = true;
@@ -47,9 +46,5 @@
 
       '';
     };
-  };
-
-  flake.modules.homeManager.base = {
-    imports = [ config.flake.modules.homeManager.neovim ];
   };
 }
