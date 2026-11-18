@@ -89,6 +89,7 @@ modules/nix/graphical-checks.nix
 modules/nix/home-manager.nix
 modules/nix/migration-checks.nix
 modules/nix/module-system-checks.nix
+modules/nix/nixos-configurations.nix
 modules/nix/pihole-checks.nix
 modules/nix/secret-checks.nix
 modules/nix/session-checks.nix
