@@ -21,6 +21,10 @@ Base: `dcbf565b51dd4e411d3976396e8e0c69398f9df1`. Referência: `kiriwalawren/dot
 
 Não sobrou procedimento que exija um guia separado. O Markdown rastreado pode integrar a fonte Git, por isso os novos guias não incluem seriais, UUIDs, endereços privados, inventário de máquinas externas, valores de credenciais, tokens ou logs. Os pins do Herdr são referências de versão, não prova de acesso ao fork. As referências aos guias históricos em 02 e 03 passam a apontar para blobs fixados; os relatórios 01–07 continuam no PR.
 
+## Ajustes finais
+
+O README deixou de recomendar `nix develop -c fish` e recuperou dois avisos: o loopback padrão do Docker não garante isolamento de portas publicadas; o pin do `pi-subagent` exige reconciliar as alterações locais antes de substituir o checkout ativo. Conferimos a configuração avaliada do Docker, os links e os comandos documentados sem reinstalar o Herdr nem executar VMs.
+
 ## Verificação
 
 - Em `32a6dddefaa43d1335f4ee78dbe7ab6c125513c2` (consolidação) e `51a6e6bb1219e46b972b8132a91422d12b1c8608` (limpeza), `nix flake check --offline --show-trace --no-write-lock-file "$src"` e `nix build --offline --no-link --print-out-paths "$src#nixosConfigurations."{desktop,lab,ordis}.config.system.build.toplevel` saíram 0. `src` era a URL `git+file://$PWD?rev=<SHA>`. Os builds reutilizaram outputs válidos.
