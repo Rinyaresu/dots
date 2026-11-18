@@ -1,6 +1,13 @@
 {
-  configurations.nixos.desktop.modules.configuration = {
+  configurations.nixos.desktop.modules.configuration = { config, ... }: {
     imports = [ ./_hardware-configuration.nix ];
+
+    assertions = [
+      {
+        assertion = !config.services.pihole-ftl.enable;
+        message = "The desktop must not run Pi-hole.";
+      }
+    ];
 
     networking.hostName = "desktop";
     system.stateVersion = "26.05";

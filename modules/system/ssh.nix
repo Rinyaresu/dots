@@ -13,8 +13,8 @@
     environment.variables.SSH_ASKPASS_REQUIRE = "prefer";
     assertions = [
       {
-        assertion = !config.services.gnome.gcr-ssh-agent.enable;
-        message = "The OpenSSH agent must not compete with GCR for SSH_AUTH_SOCK.";
+        assertion = config.programs.ssh.startAgent && !config.services.gnome.gcr-ssh-agent.enable;
+        message = "The native OpenSSH agent must be enabled without GCR competing for SSH_AUTH_SOCK.";
       }
       {
         assertion = config.programs.ssh.agentTimeout == null;

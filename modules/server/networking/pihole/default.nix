@@ -22,6 +22,33 @@
     {
       key = "${__curPos.file}#nixos.pihole";
 
+      assertions = [
+        {
+          assertion =
+            !cfg.settings.dhcp.active
+            && !cfg.settings.ntp.ipv4.active
+            && !cfg.settings.ntp.ipv6.active
+            && !cfg.settings.ntp.sync.active;
+          message = "Pi-hole must not provide DHCP or NTP or synchronize the host clock.";
+        }
+        {
+          assertion =
+            config.systemd.services.pihole-ftl.serviceConfig.LoadCredential
+            == [ "admin-hash:/var/lib/pihole-secrets/admin-hash" ];
+          message = "Pi-hole must load its administrative hash from the external credential file.";
+        }
+        {
+          assertion =
+            cfg.settings.misc.readOnly
+            &&
+              config.systemd.services.pihole-ftl.serviceConfig.AmbientCapabilities == [ "CAP_NET_BIND_SERVICE" ]
+            &&
+              config.systemd.services.pihole-ftl.serviceConfig.CapabilityBoundingSet
+              == [ "CAP_NET_BIND_SERVICE" ];
+          message = "Pi-hole FTL needs read-only settings and only CAP_NET_BIND_SERVICE.";
+        }
+      ];
+
       environment.systemPackages = [
         (pkgs.writeScriptBin "pihole-admin-hash" (
           builtins.replaceStrings

@@ -22,6 +22,10 @@
     };
     assertions = [
       {
+        assertion = !config.services.pihole-ftl.enable;
+        message = "The lab must not run Pi-hole.";
+      }
+      {
         assertion =
           !config.virtualisation.mountHostNixStore
           && config.virtualisation.useNixStoreImage

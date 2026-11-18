@@ -9,7 +9,9 @@ in
     assertions = [
       {
         assertion =
-          config.services.pihole-web.ports == "127.0.0.1:8080"
+          config.services.pihole-ftl.enable
+          && config.services.pihole-web.enable
+          && config.services.pihole-web.ports == "127.0.0.1:8080"
           && !config.services.pihole-ftl.openFirewallDNS
           && !config.services.pihole-ftl.openFirewallWebserver
           && !config.services.pihole-ftl.openFirewallDHCP;
