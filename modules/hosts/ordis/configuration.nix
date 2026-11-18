@@ -1,5 +1,7 @@
 {
   configurations.nixos.ordis.modules.configuration = { pkgs, ... }: {
+    imports = [ ./_hardware-configuration.nix ];
+
     networking.hostName = "ordis";
 
     boot.initrd.systemd.enable = true;

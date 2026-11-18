@@ -1,5 +1,7 @@
 {
   configurations.nixos.desktop.modules.configuration = {
+    imports = [ ./_hardware-configuration.nix ];
+
     networking.hostName = "desktop";
     system.stateVersion = "26.05";
     boot.loader.timeout = 5;
