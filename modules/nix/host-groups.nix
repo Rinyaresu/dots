@@ -4,70 +4,73 @@ let
 in
 {
   flake.modules.nixos = {
-    common.imports = with nixos; [
-      nix-settings
-      networking
-      locale
-      sudo
-    ];
+    base = {
+      imports = with nixos; [
+        rinyaresu
+        tools
+        toolchain
+      ];
+    };
 
-    base.imports = with nixos; [
-      common
-      rinyaresu
-      tools
-      ssh-agent
-      toolchain
-    ];
+    gui = {
+      imports = with nixos; [
+        unfree-desktop
+        graphics
+        fonts
+        polkit
+        files
+        firefox
+        bluetooth
+        sound
+      ];
+    };
 
-    gui.imports = with nixos; [
-      unfree-desktop
-      graphics
-      fonts
-      polkit
-      files
-      firefox
-      bluetooth
-      sound
-    ];
-
-    desktop-personal.imports = with nixos; [
-      rinyaresu-ssh
-      pi-bootstrap
-    ];
+    desktop-personal = {
+      imports = with nixos; [
+        rinyaresu-ssh
+        pi-bootstrap
+      ];
+    };
   };
 
   flake.modules.homeManager = {
-    base.imports = with homeManager; [
-      rinyaresu
-      fish
-      herdr
-      neovim
-      pi
-      providers
-    ];
+    base = {
+      imports = with homeManager; [
+        rinyaresu
+        fish
+        herdr
+        neovim
+        pi
+        providers
+      ];
+    };
 
-    gui.imports = with homeManager; [
-      chrome
-      discord
-      files
-      firefox
-      ghostty
-      obs
-      spotify
-      stremio
-      polkit
-      sound
-    ];
+    gui = {
+      imports = with homeManager; [
+        chrome
+        discord
+        files
+        firefox
+        ghostty
+        obs
+        spotify
+        stremio
+        polkit
+        sound
+      ];
+    };
 
-    desktop-personal.imports = with homeManager; [
-      herdr-tree
-      obsidian
-      anki
-      dbeaver
-      code
-      bitwarden
-      rinyaresu-ssh
-      pi-bootstrap
-    ];
+    desktop-personal = {
+      imports = with homeManager; [
+        herdr-tree
+        obsidian
+        anki
+        dbeaver
+        code
+        bitwarden
+        rinyaresu-ssh
+        pi-bootstrap
+      ];
+    };
   };
 }

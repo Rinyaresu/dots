@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.ssh-agent = { config, pkgs, ... }: {
     key = "${__curPos.file}#nixos.ssh-agent";
@@ -20,5 +21,9 @@
         message = "The session SSH agent keeps identities until explicit removal or agent shutdown.";
       }
     ];
+  };
+
+  flake.modules.nixos.base = {
+    imports = [ config.flake.modules.nixos.ssh-agent ];
   };
 }

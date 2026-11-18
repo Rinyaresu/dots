@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.locale = {
     key = "${__curPos.file}#nixos.locale";
@@ -16,5 +17,9 @@
       layout = "us";
       variant = "intl";
     };
+  };
+
+  flake.modules.nixos.common = {
+    imports = [ config.flake.modules.nixos.locale ];
   };
 }
