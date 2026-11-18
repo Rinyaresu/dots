@@ -205,6 +205,54 @@ in {
 
 </details>
 
+## Fechamento dos gates pendentes
+
+### Nova execução dos três testes alterados
+
+Fonte comum: `aecb3822e8920a95acc8bcb2a2935acd3817fccf`. O worktree estava limpo antes do export e cada arquivo da allowlist exportada foi comparado byte a byte com `git show <SHA>:<arquivo>`. Usei os checks existentes, sem alterar fixtures ou derivar novos testes. Com Nix 2.35.5, `--rebuild` voltou a executar cada builder e comparou sua saída à anterior; não removeu outputs do store compartilhado. O log de **cada** invocação contém `checking outputs of '<drv>'`, `machine: starting vm`, `Hypervisor detected: KVM` no kernel convidado e `test script finished`.
+
+```bash
+export NIX_CONFIG=$'builders =\nexperimental-features = nix-command flakes'
+src=$(python3 -B scripts/export-source.py)
+for t in desktop-access desktop-snapshots tailscale; do
+  f="path:$src#checks.x86_64-linux.$t"
+  nix eval --offline --no-write-lock-file --raw "$f.drvPath"
+  timeout -k 20 720 nix build --rebuild --offline --no-link --no-write-lock-file --print-build-logs "$f"
+done
+```
+
+| Check | Derivação realizada (prefixo `/nix/store/`) | Evidência nova e cenários | Status |
+| --- | --- | --- | --- |
+| `desktop-access` | `yyv5i35n0ycbhivy2x7c5y99fg3a7pkj-vm-test-run-desktop-overlay-access.drv` | KVM, script 57,95 s. Passaram a matriz IPv4/IPv6 de portas e origens, o controle que confirma listeners e rotas de retorno, a política SSH e o login com autorização externa de runtime. O DNS permaneceu inalterado após reiniciar o daemon na VM. | 0 |
+| `desktop-snapshots` | `v13ypqc0x03ibjhpxsxspjwa5r0lk9qq-vm-test-run-desktop-home-snapshots.drv` | KVM, script 14,93 s. Snapshot Btrfs reteve o conteúdo anterior; passaram as verificações de diretório privado `root:root:700`, retenção dos sete snapshots e reaplicação do preparo sem perder snapshots. | 0 |
+| `tailscale` | `nyqv13pv12wmp2yf9c1vlzk7m8xmn2fq-vm-test-run-ordis-tailscale-firewall.drv` | KVM, script 37,69 s. Passaram configuração bloqueada e persistência do daemon, preservação de DNS após reinício, política SSH e matriz LAN/overlay IPv4/IPv6. O subteste Pi-hole/Tailscale concluiu sem ampliar o acesso DNS (10,44 s). | 0 |
+
+### Diferença objetiva nas unidades geradas
+
+Comparei a baseline `3c1b2b759930fb36327fe20e01ae7349ef3a842c` com `aecb3822e8920a95acc8bcb2a2935acd3817fccf`. Não houve inclusão ou remoção em `systemd.units`. O mapa inteiro de Ordis é idêntico; desktop e lab diferem nas mesmas quatro unidades. Em cada par de arquivos de unidade, substituir **somente** o componente de hash de 32 caracteres dos caminhos do store torna o conteúdo byte a byte igual, preservando nomes, sufixos, flags e diretivas de dependência e restart. Os valores abaixo são os observados nos dois PCs (hashes omitidos onde basta mostrar a mudança).
+
+| Unidade | Campo | Antigo → novo |
+| --- | --- | --- |
+| `home-manager-rinyaresu.service` | `ExecStart` | O mesmo executável `hm-setup-env` e o mesmo número de argumentos; muda apenas o argumento `…-home-manager-generation`. Hash desktop `b35f6kci… → z12bd8k6…`; lab `3hz73zxb… → 47a9jmq8…`. O script `activate` referenciado também é igual após normalizar hashes. |
+| `mandb.service` | `ExecStart` | Mesma chamada `…-unit-script-mandb-start/bin/mandb-start`, sem argumentos novos. Hash desktop `bi3yiphx… → vnjd4q3n…`; lab `7cijr508… → g0xcwx1l…`. O conteúdo do wrapper também só difere nos hashes. |
+| `dbus-broker.service` | `X-Restart-Triggers` | Muda o hash de `…-X-Restart-Triggers-dbus-broker`: desktop `rjqj6ax0… → kz8w0jy2…`; lab `l5gl2fyz… → c79r9wmb…`. O arquivo aponta nos dois lados para `…-dbus-1`, também com hash diferente. |
+| `polkit.service` | `X-Restart-Triggers` | Muda o hash de `…-X-Restart-Triggers-polkit`: desktop `ybi2j60z… → 1a1k6rkl…`; lab `msfc2q68… → m9r9dzrb…`. O arquivo aponta nos dois lados para `…-system-path`, também com hash diferente. |
+
+Não houve mudança declarativa no comando lógico, na estrutura dos argumentos, nas dependências ou nas diretivas de restart; **os valores absolutos dos gatilhos mudaram**. Uma troca de geração pode tratar essas unidades como alteradas e reiniciá-las. Esta comparação não demonstra quais unidades serão efetivamente reiniciadas ou o efeito disso numa máquina em uso; não executei ativação, nem simulei uma troca no host.
+
+Para reproduzir, exporte ambas as revisões e gere as projeções acima (para não trocar de branch, extraia a baseline via `git archive <SHA> | tar -x -C <diretório-temporário>` dentro do worktree e execute seu exportador ali). Compare as chaves e os valores de `services.unitFiles`; para cada valor diferente, resolva `nix-store -q --outputs <drv>` e compare `<output>/<unidade>` primeiro sem filtro, depois aplicando `re.sub(r'/nix/store/[0-9a-z]{32}-', '/nix/store/HASH-', texto)` em ambos os lados. Repita para o wrapper `mandb-start`, o `activate` da geração HM e o arquivo apontado por cada `X-Restart-Triggers`. Não trate a normalização como igualdade de identidade dos store paths.
+
+### CI remota da revisão `aecb382`
+
+O workflow **Checks** é acionado pelos dois eventos. O checkout fixado em `.github/workflows/check.yml` não recebe `ref` explícito: em `push` usa o SHA da branch; em `pull_request` usa o merge ref, embora a API liste o HEAD do PR em `head_sha`. Os pais do merge ref foram conferidos pela API, e sua árvore (`ab1b3ceda2c0dc88c53df80b27f3f11c36b62f80`) é idêntica à de `aecb382`. A identificação do checkout de PR se apoia no workflow e no merge ref observado antes do novo push, não em um log final ainda indisponível.
+
+| Evento | Run | Revisão do checkout | Estado observado em 2026-11-18 02:28 UTC |
+| --- | --- | --- | --- |
+| `push` | [44222377417](https://github.com/Rinyaresu/dots/actions/runs/44222377417) | `aecb3822e8920a95acc8bcb2a2935acd3817fccf` | Em execução; sem conclusão |
+| `pull_request` | [44222382867](https://github.com/Rinyaresu/dots/actions/runs/44222382867) | `0c633f8f88fe4fc04f6f5e5ad57ddca788d903fc` (merge ref), com HEAD do PR em `aecb3822e8920a95acc8bcb2a2935acd3817fccf` | Em execução; sem conclusão |
+
+Reprodução: `gh api --method GET 'repos/Rinyaresu/dots/actions/runs?head_sha=aecb3822e8920a95acc8bcb2a2935acd3817fccf'` lista evento e estado; `git ls-remote origin refs/pull/3/merge` mostra o merge **atual**, que acompanha novos pushes e não deve ser usado para identificar retroativamente aquele run.
+
 ## Limites para revisão
 
 Esta etapa não altera CI, fonte Git, árvore final nem aceitação separada. As VMs que o check atual avalia ou realiza não equivalem ao futuro gate de sete execuções por SHA candidato. A configuração efetiva declarada e os builds no store não comprovam rede, dispositivos, sessão ou instalação nas máquinas. Não foi feito deploy, ativação, SSH para Ordis ou reboot. Revisar o escopo dos grupos, a recusa de conta inválida e as novas referências de store das duas estações antes da próxima etapa.
