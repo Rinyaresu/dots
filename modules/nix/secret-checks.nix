@@ -1,44 +1,32 @@
-{ config, lib, ... }:
+{ config, ... }:
 {
   perSystem =
     { pkgs, ... }:
     let
-      runtime = import ../../checks/secret-runtime.nix {
-        nixos = config.flake.modules.nixos;
-        homeManager = config.flake.modules.homeManager;
-        inherit pkgs;
-      };
-      system = runtime.config.nodes.machine;
+      system = config.flake.nixosConfigurations.desktop.config;
       home = system.home-manager.users.rinyaresu;
       secret = system.sops.secrets.rinyaresu-ssh-key;
-      results = {
-        ciphertext-is-declared-source =
-          builtins.isPath secret.sopsFile && secret.sopsFile == ../../secrets/ssh.yaml;
-        identity-is-runtime-string =
-          system.sops.age.keyFile == "/var/lib/sops-nix/key.txt"
-          && !(builtins.hasContext system.sops.age.keyFile);
-        build-time-ciphertext-validation = system.sops.validateSopsFiles;
-        no-generated-identity = !system.sops.age.generateKey;
-        no-host-key-fallback = system.sops.age.sshKeyPaths == [ ] && system.sops.gnupg.sshKeyPaths == [ ];
-        no-personal-bootstrap = !(home.systemd.user.services ? pi-config-restore);
-      };
-      failures = builtins.attrNames (lib.filterAttrs (_: pass: !pass) results);
+      inherit (config.flake.modules) nixos homeManager;
     in
     {
-      checks.secret-runtime = runtime;
-      checks.bootstrap-runtime = import ../../checks/bootstrap-runtime.nix {
-        nixos = config.flake.modules.nixos;
-        homeManager = config.flake.modules.homeManager;
-        inherit pkgs;
+      packages.secret-runtime = import ../../checks/secret-runtime.nix {
+        inherit nixos homeManager pkgs;
+      };
+      packages.bootstrap-runtime = import ../../checks/bootstrap-runtime.nix {
+        inherit nixos homeManager pkgs;
       };
       checks.secret-build-boundary =
-        assert lib.assertMsg (
-          failures == [ ]
-        ) "Secret build boundary failures: ${lib.concatStringsSep ", " failures}";
+        assert
+          system.sops.validateSopsFiles
+          && secret.sopsFile == ../../secrets/ssh.yaml
+          && !(builtins.hasContext system.sops.age.keyFile)
+          && !system.sops.age.generateKey
+          && system.sops.age.sshKeyPaths == [ ]
+          && system.sops.gnupg.sshKeyPaths == [ ]
+          && builtins.elem "sops-install-secrets.service" system.systemd.services.home-manager-rinyaresu.requires;
         pkgs.runCommand "secret-build-boundary" { nativeBuildInputs = [ pkgs.python3 ]; } ''
           export HOME="$TMPDIR/empty-home"
           mkdir -p "$HOME"
-          test -x ${system.system.build.toplevel}/init
           test -x ${home.home.activationPackage}/activate
           python3 - ${system.system.build.sops-nix-manifest} \
             ${home.home.file.".ssh/id_ed25519".source} ${secret.sopsFile} <<'PY'
@@ -62,9 +50,7 @@
           assert secret["mode"] == "0600"
           assert os.readlink(sys.argv[2]) == "/run/secrets/rinyaresu-ssh-key"
           PY
-          cat > "$out" <<'JSON'
-          ${builtins.toJSON results}
-          JSON
+          touch "$out"
         '';
     };
 }

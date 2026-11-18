@@ -1,0 +1,22 @@
+{ config, ... }:
+{
+  flake.modules.nixos.base = { pkgs, ... }: {
+    key = "${__curPos.file}#nixos.rinyaresu";
+    imports = [ config.flake.modules.nixos.fish ];
+    users.users.rinyaresu = {
+      isNormalUser = true;
+      uid = 1000;
+      extraGroups = [ "wheel" ];
+      shell = pkgs.fish;
+    };
+  };
+
+  flake.modules.homeManager.base = {
+    key = "${__curPos.file}#homeManager.rinyaresu";
+    imports = [ config.flake.modules.homeManager.git ];
+    programs.git.settings.user = {
+      name = "Kaique Linhares";
+      email = "79602114+Rinyaresu@users.noreply.github.com";
+    };
+  };
+}

@@ -1,6 +1,6 @@
-{ config, inputs, ... }:
+{ config, ... }:
 {
-  flake.nixosConfigurations.ordis = inputs.nixpkgs.lib.nixosSystem {
-    modules = [ config.flake.modules.nixos.host-ordis ];
+  configurations.nixos.ordis.modules = {
+    inherit (config.flake.modules.nixos) common tailscale;
   };
 }

@@ -1,14 +1,15 @@
-{ config, ... }:
 {
-  flake.modules.nixos.host-ordis = { pkgs, ... }: {
-    imports = with config.flake.modules.nixos; [
-      nix-settings
-      networking
-      locale
-      sudo
-      tailscale
-    ];
+  configurations.nixos.ordis.modules.configuration = { config, pkgs, ... }: {
+    imports = [ ./_hardware-configuration.nix ];
+
     networking.hostName = "ordis";
+
+    assertions = [
+      {
+        assertion = !(config ? home-manager) && !(config.users.users ? rinyaresu);
+        message = "Ordis must not receive Home Manager or the personal account.";
+      }
+    ];
 
     boot.initrd.systemd.enable = true;
     boot.loader = {

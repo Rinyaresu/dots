@@ -27,7 +27,7 @@ pkgs.testers.runNixOSTest {
     environment.etc = {
       "secret-runtime-manifest.json".source = config.system.build.sops-nix-manifest;
       "secret-runtime-activation".source = config.home-manager.users.rinyaresu.home.activationPackage;
-      "secret-runtime-source".source = ../.;
+      "secret-runtime-ciphertext".source = ../secrets/ssh.yaml;
     };
     environment.systemPackages = [
       pkgs.age

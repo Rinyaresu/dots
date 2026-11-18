@@ -1,40 +1,26 @@
-{ config, inputs, ... }:
+{ config, ... }:
 let
   nixos = config.flake.modules.nixos;
 in
 {
-  flake.nixosConfigurations.desktop = inputs.nixpkgs.lib.nixosSystem {
-    modules = [ nixos.host-desktop ];
+  configurations.nixos.desktop = {
+    homeUser = "rinyaresu";
+    modules = {
+      inherit (nixos)
+        base
+        gui
+        i3
+        niri
+        desktop-personal
+        tailscale
+        home-snapshots
+        wireguard
+        zram
+        no-hibernation
+        docker
+        limine
+        virtualisation
+        ;
+    };
   };
-
-  flake.modules.nixos.host-desktop.imports = [
-    nixos.nix-settings
-    nixos.networking
-    nixos.tailscale
-    nixos.home-snapshots
-    nixos.locale
-    nixos.sudo
-    nixos.rinyaresu
-    nixos.tools
-    nixos.wireguard
-    nixos.zram
-    nixos.no-hibernation
-    nixos.ssh-agent
-    nixos.unfree-desktop
-    nixos.graphics
-    nixos.fonts
-    nixos.polkit
-    nixos.files
-    nixos.firefox
-    nixos.i3
-    nixos.bluetooth
-    nixos.sound
-    nixos.toolchain
-    nixos.docker
-    nixos.niri
-    nixos.limine
-    nixos.rinyaresu-ssh
-    nixos.pi-bootstrap
-    nixos.virtualisation
-  ];
 }

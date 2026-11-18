@@ -5,7 +5,7 @@
     imports = [
       nixos.home-snapshots
       nixos.nix-settings
-      (import ../modules/hosts/desktop/maintenance.nix).flake.modules.nixos.host-desktop
+      (import ../modules/hosts/desktop/maintenance.nix).configurations.nixos.desktop.modules.maintenance
     ];
     virtualisation.restrictNetwork = true;
     virtualisation.vlans = lib.mkForce [ ];

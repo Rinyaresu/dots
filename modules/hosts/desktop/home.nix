@@ -1,10 +1,5 @@
-{ config, ... }:
-let
-  home = config.flake.modules.homeManager;
-in
 {
-  flake.modules.nixos.host-desktop = {
-    imports = [ config.flake.modules.nixos.home-manager ];
+  configurations.nixos.desktop.modules.home = {
     home-manager.users.rinyaresu = { lib, ... }: {
       home.stateVersion = "26.05";
       xdg.configFile."niri/config.kdl".text = lib.mkAfter ''
@@ -21,33 +16,6 @@ in
             position x=2560 y=0
         }
       '';
-      imports = [
-        home.rinyaresu
-        home.fish
-        home.herdr-tree
-        home.neovim
-        home.pi
-        home.providers
-        home.chrome
-        home.obsidian
-        home.anki
-        home.dbeaver
-        home.code
-        home.bitwarden
-        home.discord
-        home.files
-        home.firefox
-        home.ghostty
-        home.obs
-        home.spotify
-        home.stremio
-        home.polkit
-        home.i3
-        home.niri
-        home.sound
-        home.rinyaresu-ssh
-        home.pi-bootstrap
-      ];
     };
   };
 }

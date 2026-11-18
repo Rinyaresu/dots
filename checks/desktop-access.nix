@@ -5,7 +5,7 @@
     imports = [
       nixos.networking
       nixos.tailscale
-      (import ../modules/hosts/desktop/access.nix).flake.modules.nixos.host-desktop
+      (import ../modules/hosts/desktop/access.nix).configurations.nixos.desktop.modules.access
     ];
     networking.firewall.extraCommands = lib.mkForce firewallExtraCommands;
     virtualisation.vlans = lib.mkForce [ ];
