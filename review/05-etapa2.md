@@ -135,6 +135,32 @@ As VMs cobrem as políticas de acesso desktop e Ordis, retenção e permissões 
 
 **CI da etapa 1.** Na última consulta antes de fechar este relatório, estavam em andamento os runs de [push](https://github.com/Rinyaresu/dots/actions/runs/44222377417) e [PR](https://github.com/Rinyaresu/dots/actions/runs/44222382867) de `aecb382` e os de [push](https://github.com/Rinyaresu/dots/actions/runs/44223679561) e [PR](https://github.com/Rinyaresu/dots/actions/runs/44223686615) de `c0e2375`. Sem resultado satisfatório confirmado, não considero a etapa 1 definitivamente aprovada e mantenho a etapa 2 local.
 
+## Ajuste final de fidelidade
+
+A referência separa os aplicativos por arquivo e publica as opções no grupo, como em `apps/spotify.nix`, `apps/bitwarden-desktop.nix` e `apps/communication/slack.nix`. Conferi seletores de host, imports diretos e aliases locais de `flake.modules` usados por checks e fixtures antes de remover nomes.
+
+- `0ad62f6`: agora contribuem diretamente a `homeManager.gui` Chrome, Firefox, OBS, Spotify, Stremio, gerenciador de arquivos e agente gráfico do polkit. Bluetooth, gráficos, MIME do Firefox, GVFS e polkit contribuem a `nixos.gui`, sem mudar opções ou políticas. Neovim, providers e identidade/Git pessoal contribuem diretamente a `homeManager.base`; identidade NixOS, ferramentas e toolchain a `nixos.base`; locale e sudo a `nixos.common`. O layout pessoal do Herdr contribui diretamente a `homeManager.desktop-personal`, ainda importando o módulo Herdr usado em `base`.
+- `7811774`: Anki, Bitwarden Desktop, DBeaver, Obsidian e VS Code ganharam arquivos próprios em `modules/system/interfaces/gui/apps/`. Cada arquivo contribui a `homeManager.desktop-personal`, sem nome intermediário. Os cinco pacotes e o override de ripgrep do VS Code foram preservados; a allowlist foi atualizada.
+
+| Capacidades nomeadas mantidas | Consumidor independente |
+| --- | --- |
+| HM `discord` | `checks/graphical.nix` seleciona apenas Discord ao lado das sessões. |
+| HM `ghostty` | Niri e i3 importam o terminal; o check de arquitetura exerce o diamante e a recusa de classe errada. |
+| NixOS e HM `sound`, NixOS `fonts` e `unfree-desktop` | Fixture gráfica para o lado NixOS; o check de arquitetura testa áudio HM isoladamente sem o lado NixOS. |
+| Fish, Git, Pi e Herdr | Conta NixOS importa Fish; Herdr e providers dependem de Fish HM; identidade e fixture de arquitetura importam Git HM; bootstrap importa Pi e o check testa sua deduplicação; TreeView importa Herdr. |
+| NixOS `networking`, `nix-settings` e `ssh-agent` | Fixtures de acesso, snapshots e sessão SSH; bootstrap também importa o agente. |
+| NixOS e HM `rinyaresu-ssh` e `pi-bootstrap` | Fixtures de segredos/bootstrap e asserções de arquitetura exercem as capacidades isoladas. |
+
+### Validação do ajuste
+
+Referência de comparação: `85b25a5ae61a315ab962a6f3fe01b7afce275544`. Candidato funcional: `7811774336d6cfaa68a4dd02ea363e0f83e141c8`. O export do candidato foi conferido byte a byte com o commit. Repeti os comandos de projeção e build acima e `./scripts/check`. Os três toplevels foram resolvidos e realizados com exit 0.
+
+- Ordis: projeção e toplevel idênticos; continua sem Home Manager.
+- Desktop e lab: projeção preservada para identidade, boot, mounts, rede, SSH, firewall, serviços habilitados, estado e isolamento do lab. Mudou a ordem das listas de pacotes, sem mudança no multiconjunto de derivações. Todos os links de `sw` (15.288/15.304) e `home-path` (1.058/964) conservaram nomes e alvos.
+- As diferenças em fontconfig, manpath e scripts de ativação Home Manager desapareceram ao normalizar hashes de store; os links das completions Fish foram iguais. As quatro unidades com nova derivação (HM, mandb, dbus-broker e polkit) também tiveram conteúdo igual após normalizar hashes. Os novos caminhos em `ExecStart` e `X-Restart-Triggers` não provam ausência de reinício numa troca de geração, que não foi executada.
+
+A primeira avaliação do wrapper revelou que `home.sound` ainda era consumido por `reject-audio-without-system`; preservei o módulo em vez de adaptar a asserção. No candidato final o wrapper terminou com exit 0 e avaliou os 23 checks. Comparei todo `checks.x86_64-linux` via `--apply 'builtins.mapAttrs (_: v: v.drvPath)'` para as duas fontes exportadas. Apenas `secret-build-boundary` (auditoria de artefatos desktop) e `secret-runtime` (fixture inclui a fonte exportada) mudaram. Os dois foram realizados novamente no wrapper. A VM `rfxp2rrbfx25igf8wq8r9km0f6zrni78-vm-test-run-secret-runtime.drv` registrou `Hypervisor detected: KVM` e `test script finished in 83.21s`. As outras seis VMs mantiveram as mesmas derivações e não foram forçadas nesta rodada. A [intermitência preexistente do Pi-hole](https://github.com/Rinyaresu/dots/pull/3#issuecomment-6967660331) continua aberta; o check e a implementação não mudaram.
+
 ## Limites e pendências
 
 Não há comprovação de troca de geração, sessão gráfica, rede ou instalação em máquina física. Não houve mudanças em Home, Agent ou Dev, nem execução da etapa de migração da CI. Os relatórios são temporários.
