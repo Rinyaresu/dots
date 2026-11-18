@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.homeManager.neovim = { pkgs, ... }: {
     key = "${__curPos.file}#homeManager.neovim";
@@ -46,5 +47,9 @@
 
       '';
     };
+  };
+
+  flake.modules.homeManager.base = {
+    imports = [ config.flake.modules.homeManager.neovim ];
   };
 }

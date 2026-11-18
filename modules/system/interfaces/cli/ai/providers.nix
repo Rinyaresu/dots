@@ -23,4 +23,8 @@
       mise.enable = false;
     };
   };
+
+  flake.modules.homeManager.base = {
+    imports = [ config.flake.modules.homeManager.providers ];
+  };
 }

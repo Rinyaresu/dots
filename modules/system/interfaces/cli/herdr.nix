@@ -76,4 +76,11 @@ in
       ]
     '';
   };
+
+  flake.modules.homeManager.base = {
+    imports = [ config.flake.modules.homeManager.herdr ];
+  };
+  flake.modules.homeManager.desktop-personal = {
+    imports = [ config.flake.modules.homeManager.herdr-tree ];
+  };
 }

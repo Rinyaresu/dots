@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.toolchain = { pkgs, ... }: {
     key = "${__curPos.file}#nixos.toolchain";
@@ -45,4 +46,7 @@
     };
   };
 
+  flake.modules.nixos.base = {
+    imports = [ config.flake.modules.nixos.toolchain ];
+  };
 }

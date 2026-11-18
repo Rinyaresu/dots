@@ -19,4 +19,11 @@
       email = "79602114+Rinyaresu@users.noreply.github.com";
     };
   };
+
+  flake.modules.nixos.base = {
+    imports = [ config.flake.modules.nixos.rinyaresu ];
+  };
+  flake.modules.homeManager.base = {
+    imports = [ config.flake.modules.homeManager.rinyaresu ];
+  };
 }

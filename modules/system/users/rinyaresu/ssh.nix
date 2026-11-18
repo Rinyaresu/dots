@@ -16,7 +16,7 @@ in
       environment.systemPackages = [ pkgs.sops ];
       sops.validateSopsFiles = true;
       sops.secrets.rinyaresu-ssh-key = {
-        sopsFile = ../../../secrets/ssh.yaml;
+        sopsFile = ../../../../secrets/ssh.yaml;
         key = "ssh_private_key";
         owner = "rinyaresu";
         group = "users";
@@ -60,5 +60,12 @@ in
     ];
     home.file.".ssh/id_ed25519".source =
       config.lib.file.mkOutOfStoreSymlink "/run/secrets/rinyaresu-ssh-key";
+  };
+
+  flake.modules.nixos.desktop-personal = {
+    imports = [ config.flake.modules.nixos.rinyaresu-ssh ];
+  };
+  flake.modules.homeManager.desktop-personal = {
+    imports = [ config.flake.modules.homeManager.rinyaresu-ssh ];
   };
 }

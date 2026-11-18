@@ -1,4 +1,4 @@
-{ inputs, ... }:
+{ config, inputs, ... }:
 {
   flake.modules.homeManager.pi = { pkgs, ... }: {
     key = "${__curPos.file}#homeManager.pi";
@@ -23,5 +23,9 @@
       })
     ];
     home.sessionVariables.PI_NODE_BIN = "${pkgs.nodejs_24}/bin/node";
+  };
+
+  flake.modules.homeManager.base = {
+    imports = [ config.flake.modules.homeManager.pi ];
   };
 }

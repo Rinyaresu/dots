@@ -132,4 +132,11 @@
         Install.WantedBy = [ "default.target" ];
       };
     };
+
+  flake.modules.nixos.desktop-personal = {
+    imports = [ config.flake.modules.nixos.pi-bootstrap ];
+  };
+  flake.modules.homeManager.desktop-personal = {
+    imports = [ config.flake.modules.homeManager.pi-bootstrap ];
+  };
 }

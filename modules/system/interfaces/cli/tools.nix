@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.tools = { pkgs, ... }: {
     key = "${__curPos.file}#nixos.tools";
@@ -16,5 +17,9 @@
       usbutils
       gh
     ];
+  };
+
+  flake.modules.nixos.base = {
+    imports = [ config.flake.modules.nixos.tools ];
   };
 }
