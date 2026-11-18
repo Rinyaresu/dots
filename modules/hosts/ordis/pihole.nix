@@ -1,7 +1,10 @@
 { config, ... }:
+let
+  pihole = config.flake.modules.nixos.pihole;
+in
 {
   configurations.nixos.ordis.modules.pihole-local = { config, pkgs, ... }: {
-    imports = [ config.flake.modules.nixos.pihole ];
+    imports = [ pihole ];
 
     assertions = [
       {
