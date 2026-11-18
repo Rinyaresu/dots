@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.homeManager.obsidian = { pkgs, ... }: {
     key = "${__curPos.file}#homeManager.obsidian";
@@ -27,5 +28,15 @@
   flake.modules.homeManager.bitwarden = { pkgs, ... }: {
     key = "${__curPos.file}#homeManager.bitwarden";
     home.packages = [ pkgs.bitwarden-desktop ];
+  };
+
+  flake.modules.homeManager.desktop-personal = {
+    imports = [
+      config.flake.modules.homeManager.obsidian
+      config.flake.modules.homeManager.anki
+      config.flake.modules.homeManager.dbeaver
+      config.flake.modules.homeManager.code
+      config.flake.modules.homeManager.bitwarden
+    ];
   };
 }

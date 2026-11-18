@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.polkit.key = "${__curPos.file}#nixos.polkit";
   flake.modules.nixos.polkit.security.polkit.enable = true;
@@ -17,5 +18,12 @@
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
+  };
+
+  flake.modules.nixos.gui = {
+    imports = [ config.flake.modules.nixos.polkit ];
+  };
+  flake.modules.homeManager.gui = {
+    imports = [ config.flake.modules.homeManager.polkit ];
   };
 }

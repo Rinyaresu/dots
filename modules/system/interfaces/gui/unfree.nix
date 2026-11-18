@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.unfree-desktop = { lib, ... }: {
     key = "${__curPos.file}#nixos.unfree-desktop";
@@ -11,5 +12,9 @@
         "obsidian"
         "vscode"
       ];
+  };
+
+  flake.modules.nixos.gui = {
+    imports = [ config.flake.modules.nixos.unfree-desktop ];
   };
 }

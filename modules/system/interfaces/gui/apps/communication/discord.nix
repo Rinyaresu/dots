@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.homeManager.discord = { pkgs, ... }: {
     key = "${__curPos.file}#homeManager.discord";
@@ -16,5 +17,9 @@
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
+  };
+
+  flake.modules.homeManager.gui = {
+    imports = [ config.flake.modules.homeManager.discord ];
   };
 }

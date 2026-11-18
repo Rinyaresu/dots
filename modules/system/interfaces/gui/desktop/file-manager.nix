@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.files.key = "${__curPos.file}#nixos.files";
   flake.modules.nixos.files.services.gvfs.enable = true;
@@ -8,5 +9,12 @@
       automount = false;
       automount-open = false;
     };
+  };
+
+  flake.modules.nixos.gui = {
+    imports = [ config.flake.modules.nixos.files ];
+  };
+  flake.modules.homeManager.gui = {
+    imports = [ config.flake.modules.homeManager.files ];
   };
 }

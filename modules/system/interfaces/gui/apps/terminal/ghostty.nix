@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.homeManager.ghostty.key = "${__curPos.file}#homeManager.ghostty";
   flake.modules.homeManager.ghostty.programs.ghostty = {
@@ -12,5 +13,9 @@
       window-padding-x = 4;
       window-padding-y = 4;
     };
+  };
+
+  flake.modules.homeManager.gui = {
+    imports = [ config.flake.modules.homeManager.ghostty ];
   };
 }

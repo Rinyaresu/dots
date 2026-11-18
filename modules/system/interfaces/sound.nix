@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.sound = {
     key = "${__curPos.file}#nixos.sound";
@@ -18,5 +19,12 @@
       }
     ];
     home.packages = [ pkgs.pavucontrol ];
+  };
+
+  flake.modules.nixos.gui = {
+    imports = [ config.flake.modules.nixos.sound ];
+  };
+  flake.modules.homeManager.gui = {
+    imports = [ config.flake.modules.homeManager.sound ];
   };
 }

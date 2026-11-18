@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.fonts = { pkgs, ... }: {
     key = "${__curPos.file}#nixos.fonts";
@@ -5,5 +6,9 @@
       pkgs.nerd-fonts.iosevka
       pkgs.nerd-fonts.iosevka-term
     ];
+  };
+
+  flake.modules.nixos.gui = {
+    imports = [ config.flake.modules.nixos.fonts ];
   };
 }

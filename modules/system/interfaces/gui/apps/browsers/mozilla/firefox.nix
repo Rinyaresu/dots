@@ -1,3 +1,4 @@
+{ config, ... }:
 {
   flake.modules.nixos.firefox.key = "${__curPos.file}#nixos.firefox";
   flake.modules.nixos.firefox.xdg.mime.defaultApplications = {
@@ -10,5 +11,12 @@
   flake.modules.homeManager.firefox = { pkgs, ... }: {
     key = "${__curPos.file}#homeManager.firefox";
     home.packages = [ pkgs.firefox ];
+  };
+
+  flake.modules.nixos.gui = {
+    imports = [ config.flake.modules.nixos.firefox ];
+  };
+  flake.modules.homeManager.gui = {
+    imports = [ config.flake.modules.homeManager.firefox ];
   };
 }
