@@ -13,7 +13,10 @@ pkgs.testers.runNixOSTest {
   nodes = {
     server = { lib, ... }: {
       imports = [ piholeModule ];
-      systemd.services.pihole-ftl-setup.serviceConfig.LogFilterPatterns = lib.mkIf (experiment != "off") [ "^META " "^Invalid list API response" ];
+      systemd.services.pihole-ftl-setup.serviceConfig.LogFilterPatterns = lib.mkIf (experiment != "off") [
+        "^META "
+        "^Invalid list API response"
+      ];
       virtualisation.memorySize = 1024;
       # gravity.sh insists on resolving these even with exclusively file:// lists.
       # Satisfy only this preflight locally; actual DNS answers come from upstream.
@@ -204,7 +207,7 @@ pkgs.testers.runNixOSTest {
     def metadata():
         if experiment == "off":
             return
-        server.succeed("grep -F 'Hypervisor detected: KVM' /dev/null || journalctl -k -b --grep='Hypervisor detected: KVM' --no-pager -o cat | grep -q KVM")
+        server.succeed("journalctl -k -b --grep='Hypervisor detected: KVM' --no-pager -o cat | grep -q KVM")
         print('BOOTMETA mode=' + experiment + ' id=' + server.succeed('cat /proc/sys/kernel/random/boot_id').strip())
         print(server.succeed("systemctl show pihole-ftl pihole-ftl-setup -p Id -p MainPID -p ActiveState -p SubState -p Result -p ExecMainStatus -p ExecMainStartTimestampMonotonic -p InvocationID; journalctl -b -u pihole-ftl-setup -o short-monotonic --no-pager --grep='^META |^Invalid list API response' || true"))
 

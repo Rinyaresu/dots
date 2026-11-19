@@ -24,7 +24,8 @@ else:
 entry = base / 'pihole-ftl-setup-start'
 entry.write_text(script.replace(api, str(local_api)))
 entry.chmod(0o755)
-drop = Path('/etc/systemd/system/pihole-ftl-setup.service.d')
-drop.mkdir(exist_ok=True)
+selection = '/etc/systemd/system.control' if mode == 'observe' else '/run/systemd/system'
+drop = Path(selection) / 'pihole-ftl-setup.service.d'
+drop.mkdir(parents=True, exist_ok=True)
 (drop / '99-vm-test.conf').write_text(f'[Service]\nExecStart=\nExecStart={entry}\n')
 subprocess.run(['systemctl', 'daemon-reload'], check=True)

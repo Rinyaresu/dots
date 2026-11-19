@@ -13,7 +13,7 @@ def replace(a, b):
 # Only controlled values, not API strings, ever reach the log.
 probe = r'''
 reListObservation() {
-    local rc="$1" status="${2: -3}" body="${2%???}" shape category state
+    local rc="$1" status="${2: -3}" body="${2%???}" shape category state authenticated=false
     [[ "$status" =~ ^[0-9]{3}$ ]] || status=unknown
     if [[ -z "$body" ]]; then
         shape=empty
@@ -32,8 +32,9 @@ reListObservation() {
         0:200:*) category=json-incompatible;;
         *) category=http-incompatible;;
     esac
-    state=$(systemctl show pihole-ftl.service -p ActiveState -p SubState -p MainPID --value | paste -sd, -) || state=unknown
-    printf 'META phase=lists rc=%s http=%s shape=%s class=%s ftl(sub,pid,active)=%s authenticated=%s\n' "$rc" "$status" "$shape" "$category" "$state" "${validSession:-false}" >&2
+    state=$(systemctl show pihole-ftl.service -p ActiveState -p SubState -p MainPID | paste -sd, -) || state=unknown
+    if [[ "${validSession:-false}" == true ]]; then authenticated=true; fi
+    printf 'META phase=lists rc=%s http=%s shape=%s class=%s ftl=%s authenticated=%s\n' "$rc" "$status" "$shape" "$category" "$state" "$authenticated" >&2
 }
 '''
 replace('TestAPIAvailability() {', probe + '\nTestAPIAvailability() {')
