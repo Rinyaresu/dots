@@ -2,6 +2,7 @@
   pkgs,
   piholeModule,
   ordis,
+  experiment ? "off",
 }:
 pkgs.testers.runNixOSTest {
   name = "pihole-network";
@@ -12,6 +13,7 @@ pkgs.testers.runNixOSTest {
   nodes = {
     server = { lib, ... }: {
       imports = [ piholeModule ];
+      systemd.services.pihole-ftl-setup.serviceConfig.LogFilterPatterns = lib.mkIf (experiment != "off") [ "^META " "^Invalid list API response" ];
       virtualisation.memorySize = 1024;
       # gravity.sh insists on resolving these even with exclusively file:// lists.
       # Satisfy only this preflight locally; actual DNS answers come from upstream.
@@ -118,6 +120,11 @@ pkgs.testers.runNixOSTest {
         server.fail("curl --fail --max-time 2 http://127.0.0.1:8080/api/auth")
         server.succeed("systemctl stop pihole-ftl-setup pihole-ftl; rm /var/lib/pihole-secrets/admin-hash")
 
+    experiment = "${experiment}"
+    install_setup = "python3 ${./pihole-test-setup.py} {} ${./pihole-observe.py}"
+    if experiment == "observe":
+        server.succeed(install_setup.format("observe"))
+
     # Random test-only password exists in VM RAM, never in a derivation or argv.
     server.succeed("python3 ${./pihole-provision.py}")
     server.succeed("systemctl reset-failed; systemctl restart pihole-ftl")
@@ -142,7 +149,8 @@ pkgs.testers.runNixOSTest {
                 dns("ads.fixture.example.com", tcp=tcp, expected="0.0.0.0")
                 dns("ads.fixture.example.com", "AAAA", tcp, "::")
         except Exception:
-            print(server.execute("cat /var/log/pihole/FTL.log; tail -80 /var/log/pihole/pihole.log; systemctl status pihole-ftl pihole-ftl-setup --no-pager"))
+            if experiment == "off":
+                print(server.execute("cat /var/log/pihole/FTL.log; tail -80 /var/log/pihole/pihole.log; systemctl status pihole-ftl pihole-ftl-setup --no-pager"))
             raise
 
     with subtest("real UDP/TCP resolution, upstream and NULL blocking"):
@@ -193,12 +201,28 @@ pkgs.testers.runNixOSTest {
         server.wait_until_succeeds("systemctl is-active --quiet pihole-ftl.service")
         operational()
 
+    def metadata():
+        if experiment == "off":
+            return
+        server.succeed("grep -F 'Hypervisor detected: KVM' /dev/null || journalctl -k -b --grep='Hypervisor detected: KVM' --no-pager -o cat | grep -q KVM")
+        print('BOOTMETA mode=' + experiment + ' id=' + server.succeed('cat /proc/sys/kernel/random/boot_id').strip())
+        print(server.succeed("systemctl show pihole-ftl pihole-ftl-setup -p Id -p MainPID -p ActiveState -p SubState -p Result -p ExecMainStatus -p ExecMainStartTimestampMonotonic -p InvocationID; journalctl -b -u pihole-ftl-setup -o short-monotonic --no-pager --grep='^META |^Invalid list API response' || true"))
+
+    def checked_setup():
+        try:
+            if experiment != "off":
+                server.fail("systemctl is-failed --quiet pihole-ftl-setup")
+            server.succeed("systemctl start pihole-ftl-setup.service")
+        finally:
+            metadata()
+
     with subtest("reboot retains credential, declarative config, gravity and custom entry"):
+        metadata()
         old_boot = server.succeed("cat /proc/sys/kernel/random/boot_id").strip()
         server.shutdown()
         server.start()
         server.wait_for_unit("pihole-ftl.service")
-        server.succeed("systemctl start pihole-ftl-setup.service")
+        checked_setup()
         operational()
         dns("persist.fixture.example.com", expected="0.0.0.0")
         assert server.succeed("cat /proc/sys/kernel/random/boot_id").strip() != old_boot
@@ -206,5 +230,26 @@ pkgs.testers.runNixOSTest {
         server.succeed("sqlite3 /var/lib/pihole/gravity.db \"SELECT comment FROM domainlist WHERE domain='persist.fixture.example.com'\" | grep -Fx persistence-marker")
         server.succeed("test $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/stats/summary) = 401")
         client.fail("curl --fail --connect-timeout 2 http://192.168.1.196:8080/")
+
+    if experiment != "off":
+        with subtest("three further reboots keep setup and DNS working"):
+            seen = {old_boot, server.succeed('cat /proc/sys/kernel/random/boot_id').strip()}
+            for _ in range(3):
+                server.shutdown()
+                server.start()
+                server.wait_for_unit("pihole-ftl.service")
+                checked_setup()
+                boot = server.succeed('cat /proc/sys/kernel/random/boot_id').strip()
+                assert boot not in seen
+                seen.add(boot)
+                operational()
+                dns("persist.fixture.example.com", expected="0.0.0.0")
+
+    if experiment == "control":
+        with subtest("invalid lists shape fails before gravity update"):
+            server.succeed("test -s /var/lib/pihole/gravity.db; umask 077; sha256sum /var/lib/pihole/gravity.db > /run/gravity-before")
+            server.succeed(install_setup.format("invalid"))
+            server.fail("systemctl start pihole-ftl-setup.service")
+            server.succeed("test $(systemctl show -p Result --value pihole-ftl-setup) = exit-code; journalctl -b -u pihole-ftl-setup --grep='^Invalid list API response' -q --no-pager -o cat | grep -q '^Invalid list API response'; sha256sum --status -c /run/gravity-before")
   '';
 }
