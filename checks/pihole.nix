@@ -250,9 +250,11 @@ pkgs.testers.runNixOSTest {
 
     if experiment == "control":
         with subtest("invalid lists shape fails before gravity update"):
-            server.succeed("test -s /var/lib/pihole/gravity.db; umask 077; sha256sum /var/lib/pihole/gravity.db > /run/gravity-before")
+            gravity_state = "umask 077; python3 ${./pihole-gravity-state.py} {} /run/gravity-before.json"
             server.succeed(install_setup.format("invalid"))
+            print(server.succeed(gravity_state.format("before")))
             server.fail("systemctl start pihole-ftl-setup.service")
-            server.succeed("test $(systemctl show -p Result --value pihole-ftl-setup) = exit-code; journalctl -b -u pihole-ftl-setup --grep='^Invalid list API response' -q --no-pager -o cat | grep -q '^Invalid list API response'; sha256sum --status -c /run/gravity-before")
+            server.succeed("test $(systemctl show -p Result --value pihole-ftl-setup) = exit-code; journalctl -b -u pihole-ftl-setup --grep='^Invalid list API response' -q --no-pager -o cat | grep -q '^Invalid list API response'")
+            print(server.succeed(gravity_state.format("after")))
   '';
 }
