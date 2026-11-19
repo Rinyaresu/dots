@@ -4,6 +4,9 @@
 
 ## 1. Gate operacional e fonte
 
+- [Comparação das gerações](comparacao-geracoes.md): não é uma ativação só de Pi-hole. Firewall, logrotate, tmpfiles e triggers de D-Bus/polkit mudam; também há artefatos diferentes de contas e chaves autorizadas. Antes da janela, reconcilie privadamente contas/grupos, arquivos de chaves e regras efetivas de SSH, inclusive o efeito da ativação sobre o login e o console. Se não for possível demonstrar acesso e reversão independentes, não iniciar. Se a geração mudou desde a comparação, repita-a.
+- O piloto, se autorizado, contém o impacto de DNS, não o impacto do `test` no servidor: o DNS passa a aceitar consultas da LAN permitida, embora apenas um cliente o consulte intencionalmente. Uma rejeição de listas pode deixar o setup falho, sem concluir o bootstrap/refresh; FTL pode ainda aceitar consultas ou usar dados anteriores. Trate setup falho como motivo de rollback mesmo se uma consulta responder. O piloto não cobre falha após reboot físico nem resolve #4. Só avançar com aceitação explícita desse risco, sem alterar grants ou estado externo de Tailscale. Se a política vigente não permite o teste de SSH pela tailnet, mantenha esse gate bloqueado em vez de alterar a política.
+
 - Separe console com login/sudo conferidos, mídia, operador e armazenamento protegido com cópia independente. Não dependa de DNS ou SSH fornecido pelo candidato para recuperar o servidor. Confirme que nenhum cliente depende do Pi-hole antes da janela; não altere o Nokia, DHCP, RA nem o DNS padrão de nenhum cliente.
 - Revalide a rota e a chave ED25519 via known_hosts/canal confiável. O acesso observado usou a exceção LAN declarada; confira origem e destino na política do host e por canal privado. Se mudou, pare e reveja o candidato, não flexibilize a regra ao vivo. Mantenha a sessão original, defina `ORDIS_LOGIN` e `ORDIS_LAN_IPV4` pelos valores conferidos privadamente e abra uma nova:
 
