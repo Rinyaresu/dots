@@ -47,11 +47,17 @@ def snapshot():
     for p in sorted(state.glob('gravity*.db')):
         if p != db:
             result.setdefault('other-gravity', {})[p.name] = logical(p)
-    # Covers persistent files used by gravity besides SQLite; no sessions or logs.
-    for pattern in ('list.*', 'adlists.list', 'gravity.list', 'gravity*.db_temp', 'gravity_temp*'):
-        for p in sorted(state.glob(pattern)):
-            if p.is_file():
-                result.setdefault('aux', {})[p.name] = digest_file(p)
+    # Cover retained gravity artifacts, not the mutable SHM/WAL byte layout,
+    # query logs, session data or general FTL runtime state.
+    for root, patterns in (
+        (state, ('gravity*.db_temp*', 'gravity_backups/gravity.db.*')),
+        (Path('/etc/pihole'), ('listsCache', 'listsCache/**/*', 'adlists.list')),
+    ):
+        for pattern in patterns:
+            for p in sorted(root.glob(pattern)):
+                entry = 'directory' if p.is_dir() else digest_file(p)
+                if entry is not None:
+                    result.setdefault('aux', {})[str(p)] = entry
     return result
 
 
