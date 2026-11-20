@@ -1,4 +1,6 @@
-# Trabalhar nesta configuração
+# dots
+
+O flake declara NixOS; não é configuração aplicada ao CachyOS. Para operação e recuperação, use o [procedimento do host](README.md). Para localizar os demais repositórios pessoais, use o mapa do Home.
 
 ## Composição
 
@@ -11,4 +13,3 @@
 
 - Use os [gates nativos do README](README.md#verificar-sem-ativar). Para evidência, registre o SHA de uma fonte Git limpa; não use `path:` para contornar o recorte. Rode VMs pertinentes em KVM somente quando o contrato de runtime ou a derivação for afetado. Build não comprova hardware ou serviços reais.
 - Mantenha chaves privadas, identidades age, tokens, estado pessoal e recuperação fora de Git, store, logs e artefatos. A exceção é o ciphertext revisado de `secrets/ssh.yaml`. Para provisionar, rotacionar ou recuperar, leia [o guia de credenciais](secrets/README.md).
-- Edição, build e publicação não autorizam merge, deploy, ativação, reboot, operação remota ou mudança de visibilidade. Para instalação, operação ou recuperação autorizada, use [o procedimento do host](README.md).

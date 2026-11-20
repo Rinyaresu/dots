@@ -131,6 +131,8 @@ de CA, instale a nova confiança no cliente antes de servir a nova leaf e
 remova a antiga após validar; se houver comprometimento, remova imediatamente
 a confiança antiga e emita CA e leaf novas. Não use exceções de certificado.
 
+### Recuperar estado persistente ou Gravity
+
 Antes de upgrade ou recuperação, pare os serviços com autorização e guarde cópia consistente dos bancos, hash e revisão em armazenamento privado protegido. Não copie SQLite ativo sem mecanismo transacional. Se setup ou swap do gravity falhar, preserve o estado e investigue antes de tentar novamente. Rollback Nix não remove listas persistentes, não reverte hash e pode ser incompatível com banco migrado. Para recuperar, use a revisão e a cópia compatíveis, confirme permissões, reinicie só com autorização e repita as verificações de DNS e autenticação. Não publique logs, histórico DNS ou backups.
 
 Para voltar **apenas** o Gravity, depois de confirmar que o banco ativo está

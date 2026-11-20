@@ -1,5 +1,7 @@
 # NixOS
 
+Este checkout descreve o estado declarado. Em um host NixOS, confira a fonte usada, `/run/current-system` (ativo) e `/run/booted-system` (boot); podem divergir. O perfil `desktop` não descreve o CachyOS em execução.
+
 - `desktop`: estação física com Home Manager; sessão Niri e recuperação via i3.
 - `lab`: VM descartável sem rede nem compartilhamento com o host. A senha pública do lab é só para essa VM; não instale esse perfil em disco físico.
 - `ordis`: servidor sem Home Manager. [O procedimento do servidor](#manter-ordis) é independente da instalação desktop.
