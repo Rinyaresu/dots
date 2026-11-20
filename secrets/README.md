@@ -52,12 +52,12 @@ também o certificado público e sua impressão digital SHA-256. Se guardar a
 passphrase no Bitwarden, use uma nota distinta. Duas notas no mesmo cofre
 não são backup nem oferecem separação contra comprometimento do cofre.
 
-Para Ordis, foi aceito operar só com o Bitwarden, sem backup independente.
 Recupere o PEM do cofre em tmpfs, valide que abre com a passphrase e confira
 que a chave pública coincide com a do certificado. Remova a cópia de
 trabalho quando terminar; nunca copie a chave da CA para Ordis, Git, Nix
-store, logs ou perfil do navegador. Se perder acesso ao cofre ou à chave,
-não poderá renovar com a CA antiga: gere nova CA e leaf, substitua a
+store, logs ou perfil do navegador. O Bitwarden é a única cópia durável
+registrada para Ordis; não há backup independente confirmado. Se perder
+acesso ao cofre, à chave ou à passphrase, gere nova CA e leaf, substitua a
 confiança no Firefox e remova a CA antiga. Se houver suspeita de exposição,
 remova a confiança antiga imediatamente.
 
@@ -96,8 +96,9 @@ para o nome local, mantenha o resolvedor do sistema nesse perfil. Faça login
 pelo navegador, sem capturar a senha, o histórico DNS ou cookies. Sem CA no
 perfil ou a partir de cliente não autorizado, teste a recusa separadamente.
 
-Verifique o vencimento mensalmente (`openssl x509 -checkend 2592000 -noout
--in leaf.crt`). Com 30 dias de margem, emita nova leaf com chave nova;
+Após cada emissão, registre um lembrete no calendário para 30 dias antes
+do vencimento (`openssl x509 -enddate -noout -in leaf.crt`). Não há renovação
+automática. Na data do lembrete, emita nova leaf com chave nova;
 preserve o PEM anterior em armazenamento privado até validar; substitua
 atomicamente e reinicie **apenas** o FTL numa janela autorizada. Repita
 SSH/túnel, resolução e bloqueio, handshake e login real e confirme o
