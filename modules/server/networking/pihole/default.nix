@@ -70,8 +70,13 @@
             ${pkgs.patch}/bin/patch -d "$out/share/pihole/advanced/Scripts" -p1 < ${./gravity-safe-update.patch}
           ''
           + old.preFixup;
+          # FD-only flock has no command operand; resholve cannot infer that.
+          postFixup = (old.postFixup or "") + ''
+            substituteInPlace "$out/share/pihole/advanced/Scripts/gravity.sh" \
+              --replace-fail ": 'gravity-flock'" '${lib.getExe' pkgs.util-linux "flock"} -n 9 || exit 1'
+          '';
         });
-        privacyLevel = 3;
+        privacyLevel = lib.mkDefault 3;
         # No global firewall openings: each consumer selects its trusted network.
         settings = {
           dns = {

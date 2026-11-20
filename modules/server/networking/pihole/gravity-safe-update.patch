@@ -97,7 +97,7 @@
 -  rm "${gravityOLDfile}"
 +# Serialize the web action and the scheduled refresh on the same database.
 +exec 9>"${gravityDBfile}.lock" || exit 1
-+flock -n 9 || exit 1
++: 'gravity-flock'
 +if [[ -f "${gravityDBfile}" ]] && [[ "$(pihole-FTL sqlite3 -readonly "${gravityDBfile}" 'PRAGMA journal_mode;')" != delete ]]; then
 +  echo 'Unexpected gravity journal mode; refusing to replace the database' >&2
 +  exit 1
