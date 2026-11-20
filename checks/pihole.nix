@@ -120,6 +120,17 @@ pkgs.testers.runNixOSTest {
 
     # Random test-only password exists in VM RAM, never in a derivation or argv.
     server.succeed("python3 ${./pihole-provision.py}")
+
+    with subtest("unavailable loopback API prevents setup even with a valid credential"):
+        drop_in = "/run/systemd/system/pihole-ftl.service.d/90-test-api-unavailable.conf"
+        server.succeed(f"install -d $(dirname {drop_in}); printf '%s\\n' '[Service]' 'Environment=FTLCONF_webserver_port=127.0.0.1:8081' 'Restart=no' > {drop_in}; systemctl daemon-reload; systemctl reset-failed pihole-ftl")
+        server.fail("timeout 45s systemctl start pihole-ftl-setup.service")
+        server.succeed("test $(systemctl show -p Result --value pihole-ftl) = exit-code")
+        server.succeed("journalctl -b -u pihole-ftl --grep='^FTL loopback API did not become ready' -q --no-pager -o cat | grep -q '^FTL loopback API did not become ready'")
+        server.succeed("test $(systemctl show -p ExecMainStartTimestampMonotonic --value pihole-ftl-setup) = 0")
+        server.fail("test -e /var/lib/pihole/gravity.db")
+        server.succeed(f"rm {drop_in}; systemctl daemon-reload")
+
     server.succeed("systemctl reset-failed; systemctl restart pihole-ftl")
     server.wait_for_unit("pihole-ftl.service")
     server.succeed("python3 ${./pihole-argv.py} ${ordis.services.pihole-ftl.piholePackage}/share/pihole/advanced/Scripts/api.sh")
@@ -206,5 +217,13 @@ pkgs.testers.runNixOSTest {
         server.succeed("sqlite3 /var/lib/pihole/gravity.db \"SELECT comment FROM domainlist WHERE domain='persist.fixture.example.com'\" | grep -Fx persistence-marker")
         server.succeed("test $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/stats/summary) = 401")
         client.fail("curl --fail --connect-timeout 2 http://192.168.1.196:8080/")
+
+    with subtest("invalid lists shape fails before gravity update"):
+        gravity_state = "umask 077; python3 ${./pihole-gravity-state.py} {} /run/gravity-before.json"
+        server.succeed("python3 ${./pihole-test-invalid-lists.py}")
+        print(server.succeed(gravity_state.format("before")))
+        server.fail("systemctl start pihole-ftl-setup.service")
+        server.succeed("test $(systemctl show -p Result --value pihole-ftl-setup) = exit-code && journalctl -b -u pihole-ftl-setup --grep='^Invalid list API response' -q --no-pager -o cat | grep -q '^Invalid list API response'")
+        print(server.succeed(gravity_state.format("after")))
   '';
 }

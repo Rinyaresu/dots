@@ -166,6 +166,23 @@
           LoadCredential = [ "admin-hash:/var/lib/pihole-secrets/admin-hash" ];
           RuntimeDirectory = "pihole-cli";
           RuntimeDirectoryMode = "0700";
+          # Type=simple orders setup after fork, not after FTL installs its
+          # reload signal handler. Wait for its loopback API before setup can
+          # bootstrap gravity and deliver SIGRTMIN to the main process.
+          ExecStartPost = [
+            (pkgs.writeShellScript "pihole-ftl-await-api" ''
+              for _ in {1..30}; do
+                if status=$(${lib.getExe pkgs.curl} --noproxy '*' --silent \
+                  --connect-timeout 0.5 --max-time 0.5 --output /dev/null \
+                  --write-out '%{http_code}' http://127.0.0.1:8080/api/auth); then
+                  case "$status" in 200|401) exit 0 ;; esac
+                fi
+                ${pkgs.coreutils}/bin/sleep 0.5
+              done
+              echo 'FTL loopback API did not become ready; refusing to start setup' >&2
+              exit 1
+            '')
+          ];
           ExecStartPre = [
             (pkgs.writeShellScript "pihole-ftl-validate-credential" ''
               set -euo pipefail
