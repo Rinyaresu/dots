@@ -96,3 +96,16 @@ remova a antiga após validar; se houver comprometimento, remova imediatamente
 a confiança antiga e emita CA e leaf novas. Não use exceções de certificado.
 
 Antes de upgrade ou recuperação, pare os serviços com autorização e guarde cópia consistente dos bancos, hash e revisão em armazenamento privado protegido. Não copie SQLite ativo sem mecanismo transacional. Se setup ou swap do gravity falhar, preserve o estado e investigue antes de tentar novamente. Rollback Nix não remove listas persistentes, não reverte hash e pode ser incompatível com banco migrado. Para recuperar, use a revisão e a cópia compatíveis, confirme permissões, reinicie só com autorização e repita as verificações de DNS e autenticação. Não publique logs, histórico DNS ou backups.
+
+Para voltar **apenas** o Gravity, depois de confirmar que o banco ativo está
+inválido ou que a lista nova está errada, pare o timer e aguarde o setup
+terminar; confirme que não há atualização manual. Mantenha cópia privada do
+estado, inclusive de possíveis journals. Pare o FTL. Verifique
+`PRAGMA quick_check` em `/var/lib/pihole/gravity_old.db` e confirme que é
+compatível e tem os domínios esperados. Não apague ou sobreponha arquivos se
+houver journals não resolvidos. Copie o backup para temporário **no diretório
+do banco**, com dono e modo corretos. Sincronize o arquivo, publique com
+rename sobre `gravity.db` e sincronize o diretório. Preserve o arquivo
+`gravity_old.db`. Suba o FTL e confira DNS e bloqueio antes de reativar o
+timer. Se só o reload foi interrompido, um restart do FTL deve carregar o
+banco já publicado; não restaure o banco sem necessidade.
