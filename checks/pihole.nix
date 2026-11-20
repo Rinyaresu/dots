@@ -61,11 +61,12 @@ pkgs.testers.runNixOSTest {
         PIHOLE_TLS_CA = "/var/lib/pihole-tls/test-ca.crt";
       };
       systemd.services.pihole-publish-tls = {
-        inherit (ordis.systemd.services.pihole-publish-tls) serviceConfig;
-        serviceConfig.ExecStart = lib.mkForce (builtins.replaceStrings
-          [ "/var/lib/acme/pihole.rinyaresu.dev" "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" ]
-          [ "/run/test-acme" "/var/lib/pihole-tls/test-ca.crt" ]
-          ordis.systemd.services.pihole-publish-tls.serviceConfig.ExecStart);
+        serviceConfig = ordis.systemd.services.pihole-publish-tls.serviceConfig // {
+          ExecStart = builtins.replaceStrings
+            [ "/var/lib/acme/pihole.rinyaresu.dev" "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" ]
+            [ "/run/test-acme" "/var/lib/pihole-tls/test-ca.crt" ]
+            ordis.systemd.services.pihole-publish-tls.serviceConfig.ExecStart;
+        };
       };
       systemd.tmpfiles.rules = [ "d /var/lib/pihole-tls 0750 root pihole -" ];
       environment.systemPackages = [
