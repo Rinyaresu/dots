@@ -1,0 +1,112 @@
+--- a/gravity.sh
++++ b/gravity.sh
+@@ -134,29 +134,10 @@
+     oldAvail=true
+-    cp -p "${gravityDBfile}" "${gravityOLDfile}"
+-  fi
+-
+-  # Drop the gravity and antigravity tables + subsequent VACUUM the current
+-  # database for compaction
+-  output=$({ printf ".timeout 30000\\nDROP TABLE IF EXISTS gravity;\\nDROP TABLE IF EXISTS antigravity;\\nVACUUM;\\n" | pihole-FTL sqlite3 -ni "${gravityDBfile}"; } 2>&1)
+-  status="$?"
+-
+-  if [[ "${status}" -ne 0 ]]; then
+-    echo -e "\\n  ${CROSS} Unable to clean current database for backup\\n  ${output}"
+-  else
+-    # Check if the backup directory exists
+-    if [ ! -d "${gravityBCKdir}" ]; then
+-      mkdir -p "${gravityBCKdir}" && chown pihole:pihole "${gravityBCKdir}"
+-    fi
+-
+-    # If multiple gravityBCKfile's are present (appended with a number), rotate them
+-    # We keep at most 10 backups
+-    rotate_gravity_backup
+-
+-    # Move the old database to the backup location
+-    mv "${gravityDBfile}" "${gravityBCKfile}.1"
+-  fi
+-
+-
+-  # Move the new database to the correct location
+-  mv "${gravityTEMPfile}" "${gravityDBfile}"
++    local backup="${gravityOLDfile}.new"
++    rm -f "${backup}" || return 1
++    pihole-FTL sqlite3 -bail "${gravityDBfile}" ".backup ${backup}" || return 1
++    mv -fT "${backup}" "${gravityOLDfile}" || return 1
++  fi
++
++  # Keep the live file intact until the same-filesystem atomic rename.
++  mv -fT "${gravityTEMPfile}" "${gravityDBfile}" || return 1
+   echo -e "${OVER}  ${TICK} ${str}"
+@@ -581,3 +562,3 @@
+     else
+-      timeit gravity_DownloadBlocklistFromUrl "${url}" "${sourceIDs[$i]}" "${saveLocation}" "${compression}" "${adlist_type}" "${domain}"
++      timeit gravity_DownloadBlocklistFromUrl "${url}" "${sourceIDs[$i]}" "${saveLocation}" "${compression}" "${adlist_type}" "${domain}" || return 1
+     fi
+@@ -619,3 +600,7 @@
+   # modifiedOptions is an array to store all the options used to check if the adlist has been changed upstream
+-  local modifiedOptions=()
++  local modifiedOptions=() managed=false
++  if [[ "$url" == "${PIHOLE_MANAGED_HOSTS_URL:-}" ]]; then
++    managed=true
++    modifiedOptions=(--proto '=https,http' --proto-redir '=https' --max-time 90 --max-filesize 16777216)
++  fi
+
+@@ -629,3 +614,3 @@
+   # downloading them whenever possible.
+-  if [[ $url != "file"* ]]; then
++  if [[ $url != "file"* ]] && ! $managed; then
+     # Use the HTTP ETag header to determine if the file has changed if supported
+@@ -840,2 +825,18 @@
+
++  if $managed; then
++    # Reject HTML, truncated/empty responses and non-hosts payloads before
++    # changing the cache or replacing the last working database.
++    if [[ "${curlExitCode}" != 0 || "${httpCode}" != 200 ]] || ! @awk@ '
++      { sub(/#.*/, "") }
++      !NF { next }
++      $1 == "0.0.0.0" && NF == 2 && $2 ~ /^[[:alnum:]_-]+(\.[[:alnum:]_-]+)+$/ { good++; next }
++      { other++ }
++      END { exit !(good >= 50000 && other <= 100) }
++    ' "${listCurlBuffer}"; then
++      rm -f "${listCurlBuffer}"
++      echo 'Managed hosts download failed validation; retaining live Gravity and cache' >&2
++      return 1
++    fi
++  fi
++
+   local done="false"
+@@ -852,3 +853,7 @@
+       # Move the downloaded list to the final location
+-      mv "${listCurlBuffer}" "${saveLocation}"
++      if $managed; then
++        pihole-FTL "${gravity_type}" parseList "${listCurlBuffer}" "${gravityTEMPfile}" "${adlistID}" || return 1
++        [[ "$(pihole-FTL sqlite3 -readonly "${gravityTEMPfile}" "SELECT count(*) >= 50000 FROM gravity WHERE adlist_id=${adlistID};")" == 1 ]] || return 1
++      fi
++      mv "${listCurlBuffer}" "${saveLocation}" || return 1
+       # Ensure the file has the correct permissions
+@@ -862,3 +867,3 @@
+       # Add domains to database table file
+-      pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}"
++      $managed || pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}" || return 1
+       done="true"
+@@ -1150,5 +1155,8 @@
+
+-# Remove OLD (backup) gravity file, if it exists
+-if [[ -f "${gravityOLDfile}" ]]; then
+-  rm "${gravityOLDfile}"
++# Serialize the web action and the scheduled refresh on the same database.
++exec 9>"${gravityDBfile}.lock" || exit 1
++@flock@ -n 9 || exit 1
++if [[ -f "${gravityDBfile}" ]] && [[ "$(pihole-FTL sqlite3 -readonly "${gravityDBfile}" 'PRAGMA journal_mode;')" != delete ]]; then
++  echo 'Unexpected gravity journal mode; refusing to replace the database' >&2
++  exit 1
+ fi
+@@ -1202,5 +1210,5 @@
+ # Build the tree
+-timeit gravity_build_tree gravity
+-timeit gravity_build_tree antigravity
++timeit gravity_build_tree gravity || exit 1
++timeit gravity_build_tree antigravity || exit 1
+
+ # Compute numbers to be displayed (do this after building the tree to get the
