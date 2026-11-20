@@ -341,7 +341,10 @@ pkgs.testers.runNixOSTest {
             ]
             lines.insert(index + int(after), '  kill -KILL "$$"\n')
             server.succeed("printf %s " + shlex.quote("".join(lines)) + " >/run/gravity-interrupt; chmod 700 /run/gravity-interrupt")
-            server.must_fail("PIHOLE_MANAGED_HOSTS_URL=http://192.168.1.50:8888/hosts /run/gravity-interrupt -g")
+            server.succeed(
+                "rc=0; PIHOLE_MANAGED_HOSTS_URL=http://192.168.1.50:8888/hosts "
+                "/run/gravity-interrupt -g || rc=$?; test \"$rc\" = 137"
+            )
             for path in [db, backup]:
                 server.succeed(f"sqlite3 {path} 'PRAGMA quick_check' | grep -Fx ok")
                 server.succeed(f"sqlite3 {path} 'SELECT count(*) FROM gravity WHERE domain=\"fixture50002.example.com\"' | grep -Fx 1")
