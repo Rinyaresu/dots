@@ -4,14 +4,24 @@ let
 in
 {
   configurations.nixos.ordis.modules.pihole-local =
-    { config, lib, pkgs, ... }:
+    {
+      config,
+      lib,
+      pkgs,
+      ...
+    }:
     let
       lan = "192.168.1.196";
       name = "pihole.rinyaresu.dev";
       tlsDirectory = "/var/lib/pihole-tls";
       publish = pkgs.writeShellApplication {
         name = "ordis-pihole-publish-tls";
-        runtimeInputs = [ pkgs.coreutils pkgs.openssl pkgs.systemd ];
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.diffutils
+          pkgs.openssl
+          pkgs.systemd
+        ];
         text = builtins.readFile ./pihole-publish-tls.sh;
       };
       source = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts";
