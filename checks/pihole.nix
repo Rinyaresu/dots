@@ -347,10 +347,10 @@ pkgs.testers.runNixOSTest {
             )
             for path in [db, backup]:
                 server.succeed(f"sqlite3 {path} 'PRAGMA quick_check' | grep -Fx ok")
-                server.succeed(f"sqlite3 {path} 'SELECT count(*) FROM gravity WHERE domain=\"fixture50002.example.com\"' | grep -Fx 1")
+                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='fixture50002.example.com'\" | grep -Fx 1")
             db_count = 1 if after else 0
             for path, count in [(db, db_count), (backup, 0)]:
-                server.succeed(f"sqlite3 {path} 'SELECT count(*) FROM gravity WHERE domain=\"interrupted.example.com\"' | grep -Fx {count}")
+                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='interrupted.example.com'\" | grep -Fx {count}")
             dns("fixture50002.example.com", expected="0.0.0.0")
         server.succeed("systemctl restart pihole-ftl")
         dns("interrupted.example.com", expected="0.0.0.0")
