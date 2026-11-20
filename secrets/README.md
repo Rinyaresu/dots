@@ -34,9 +34,9 @@ De um cliente LAN autorizado, compare o resultado de um nome permitido e um bloq
 
 ### HTTPS privado de Ordis
 
-Em mídia removível **cifrada**, fora de Git e dos discos dos dois hosts, crie uma CA
-dedicada ao painel. Em máquina confiável, com a mídia montada e `umask 077`,
-rode (OpenSSL solicita a passphrase no terminal):
+No CachyOS, fora de Git e do Nix store, crie uma CA dedicada ao painel.
+Use um diretório privado em tmpfs e `umask 077`. O OpenSSL pede a
+passphrase no terminal; não passe por argumentos, ambiente ou histórico:
 
 ```sh
 openssl req -new -x509 -newkey rsa:3072 -sha256 -days 1825 \
@@ -45,16 +45,27 @@ openssl req -new -x509 -newkey rsa:3072 -sha256 -days 1825 \
   -addext 'keyUsage=critical,keyCertSign,cRLSign'
 ```
 
-Guarde cópia cifrada e recuperável da CA; desmonte a mídia ao terminar. Não
-copie a chave ao Ordis ou ao perfil do navegador. Use uma passphrase própria
-com recuperação independente. Registre o vencimento da CA e sua impressão
-digital SHA-256 por canal confiável.
+No Bitwarden pessoal, crie uma nota segura dedicada à CA do Pi-hole:
+anexe o PEM **ENCRYPTED PRIVATE KEY** se o cofre oferecer anexos; caso
+contrário, guarde o PEM cifrado na nota, sem retirar a passphrase. Guarde
+também o certificado público e sua impressão digital SHA-256. Não guarde a
+passphrase nessa nota nem dependa apenas desse cofre para recuperá-la.
+
+Mantenha uma segunda cópia do PEM cifrado e do certificado público em
+armazenamento sob seu controle, fora do Bitwarden e separado do CachyOS
+(por exemplo, mídia externa ou backup cifrado independente). Não conte
+com exportação do cofre para recuperar um anexo. Recupere as duas cópias
+separadamente e valide que a chave abre com a passphrase e que sua chave
+pública coincide com a do certificado. Remova a cópia de trabalho quando
+terminar; nunca copie a chave da CA para Ordis, Git, Nix store, logs ou
+perfil do navegador.
 
 No Ordis, na sessão administrativa interativa, use um diretório de preparação
 root:root 0700 em `/var/lib/pihole-secrets`. Com `umask 077`, gere uma chave
 RSA 3072 e CSR com `openssl req -new -newkey rsa:3072 -noenc -keyout leaf.key
 -out leaf.csr -subj /CN=pihole.home.arpa`. Envie **só o CSR** para assinar.
-Na sessão offline, escreva um arquivo de extensões:
+No CachyOS, recupere a chave cifrada apenas para assinar e escreva um
+arquivo de extensões no diretório privado em tmpfs:
 
 ```ini
 basicConstraints=critical,CA:FALSE
