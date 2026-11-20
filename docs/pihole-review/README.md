@@ -2,6 +2,8 @@
 
 **Estado:** diagnóstico incompleto; sem correção de produção neste PR e sem autorização de ativação. A configuração base já está em `master`. Os testes acontecem em guests descartáveis. As observações do servidor vieram de leituras SSH, não de um piloto. Este documento e os recortes ficam até a revisão aprovar uma limpeza separada.
 
+**Decisão pré-piloto:** [reconciliação de acessos, CI final e verificações pendentes](decisao-piloto.md).
+
 **Rodada 2:** [comparação das gerações](comparacao-geracoes.md) e [controle lógico do SQLite, KVM e CI](rodada-2.md). Os resultados abaixo permanecem como evidência da investigação original.
 
 ## A. O que sabemos sobre a issue #4

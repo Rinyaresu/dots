@@ -4,10 +4,10 @@
 
 ## 1. Gate operacional e fonte
 
-- [Comparação das gerações](comparacao-geracoes.md): não é uma ativação só de Pi-hole. Firewall, logrotate, tmpfiles e triggers de D-Bus/polkit mudam; também há artefatos diferentes de contas e chaves autorizadas. Antes da janela, reconcilie privadamente contas/grupos, arquivos de chaves e regras efetivas de SSH, inclusive o efeito da ativação sobre o login e o console. Se não for possível demonstrar acesso e reversão independentes, não iniciar. Se a geração mudou desde a comparação, repita-a.
+- [Comparação das gerações](comparacao-geracoes.md): não é uma ativação só de Pi-hole. Firewall, logrotate, tmpfiles e triggers de D-Bus/polkit mudam; também há artefatos diferentes de contas e chaves autorizadas. A [reconciliação de contas e chaves](decisao-piloto.md) confirmou que a única adição declarada é a identidade `pihole` e que a chave usada no SSH pela LAN é preservada; confirme que a geração e a política ainda correspondem à evidência. Isso não confirma o firewall efetivo nem o acesso após aplicação. Se não for possível demonstrar acesso e reversão independentes, não iniciar. Se a geração mudou desde a comparação, repita-a.
 - O piloto, se autorizado, contém o impacto de DNS, não o impacto do `test` no servidor: o DNS passa a aceitar consultas da LAN permitida, embora apenas um cliente o consulte intencionalmente. Uma rejeição de listas pode deixar o setup falho, sem concluir o bootstrap/refresh; FTL pode ainda aceitar consultas ou usar dados anteriores. Trate setup falho como motivo de rollback mesmo se uma consulta responder. O piloto não cobre falha após reboot físico nem resolve #4. Só avançar com aceitação explícita desse risco, sem alterar grants ou estado externo de Tailscale. Se a política vigente não permite o teste de SSH pela tailnet, mantenha esse gate bloqueado em vez de alterar a política.
 
-- Separe console com login/sudo conferidos, mídia, operador e armazenamento protegido com cópia independente. Não dependa de DNS ou SSH fornecido pelo candidato para recuperar o servidor. Confirme que nenhum cliente depende do Pi-hole antes da janela; não altere o Nokia, DHCP, RA nem o DNS padrão de nenhum cliente.
+- Confirme um caminho administrativo de recuperação independente da rede: console com login e privilégio conferidos, ou alternativa verificada com acesso à geração, mídia e cópia protegida. `sudo -l` no console é uma forma de conferir o primeiro caminho, não uma exigência para a alternativa. O acesso físico já foi informado pelo operador; não o trate como prova de privilégio ou boot. Não dependa de DNS ou SSH fornecido pelo candidato para recuperar o servidor. Confirme que nenhum cliente depende do Pi-hole antes da janela; não altere o Nokia, DHCP, RA nem o DNS padrão de nenhum cliente.
 - Revalide a rota e a chave ED25519 via known_hosts/canal confiável. O acesso observado usou a exceção LAN declarada; confira origem e destino na política do host e por canal privado. Se mudou, pare e reveja o candidato, não flexibilize a regra ao vivo. Mantenha a sessão original, defina `ORDIS_LOGIN` e `ORDIS_LAN_IPV4` pelos valores conferidos privadamente e abra uma nova:
 
 ```sh
@@ -133,7 +133,7 @@ nixos-rebuild switch --flake "$SRC#ordis" --no-write-lock-file &&
   bootctl list
 ```
 
-Não reinicie o Ordis nesta janela. `switch` não comprova boot real. Não altere Nokia/DHCP mesmo após sucesso.
+Para o piloto temporário, encerre com o rollback da seção 4; não execute `switch`. O bloco de persistência acima é exclusivamente para uma janela posterior autorizada. Não reinicie o Ordis nesta janela. `switch` não comprova boot real. Não altere Nokia/DHCP mesmo após sucesso.
 
 ## 4. Rollback de sistema e recuperação de dados são ações separadas
 
