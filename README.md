@@ -53,6 +53,8 @@ Antes de qualquer operação autorizada, compare rede, SSH, firewall, armazename
 
 Uma aplicação temporária autorizada precede a persistência. Confirme conexão nova, sudo, [DNS/Pi-hole](secrets/README.md#provisionar-e-recuperar-pi-hole), serviços e mounts. Reboot exige autorização separada e caminho de recuperação preparado. Se falhar, use console e entrada funcional do systemd-boot ou mídia de recuperação; confira a política de acesso da geração de retorno. Não formate, reinstale, apague estado, gerações ou faça GC para recuperar uma falha de configuração. Rollback de Nix não reverte bancos migrados.
 
+Verifique `pihole-ftl-setup.service` separadamente do FTL. O setup é `oneshot`: confira `Result=success` e `ExecMainStatus=0` da execução atual, mesmo se a unidade estiver inativa. DNS respondendo não prova que as listas foram atualizadas. Se o setup falhar, preserve o estado e valide o bloqueio antes de considerar o serviço recuperado. Compare também `/run/current-system`, `/run/booted-system` e o perfil `system`: `switch` não valida o próximo boot.
+
 ## Autorizar acesso via Tailscale
 
 No desktop, por console autorizado, instale somente chaves **públicas** verificadas dos clientes em `/var/lib/desktop-ssh/authorized_keys/rinyaresu` (root:root 0644; diretório root:root 0755). A home não autoriza SSH de entrada. Preserve as chaves privadas nos clientes. Não abra SSH na LAN como substituto do console; a exceção LAN de [Ordis](modules/hosts/ordis/configuration.nix) não vale para o desktop.
