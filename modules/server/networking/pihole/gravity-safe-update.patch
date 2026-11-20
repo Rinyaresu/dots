@@ -55,11 +55,11 @@
 @@ -629,3 +614,3 @@
    # downloading them whenever possible.
 -  if [[ $url != "file"* ]]; then
-+  if [[ $url != "file"* ]] && ! $managed; then
++  if [[ $url != "file"* ]] && [[ "$managed" != true ]]; then
      # Use the HTTP ETag header to determine if the file has changed if supported
 @@ -840,2 +825,18 @@
 
-+  if $managed; then
++  if [[ "$managed" == true ]]; then
 +    # Reject HTML, truncated/empty responses and non-hosts payloads before
 +    # changing the cache or replacing the last working database.
 +    if [[ "${curlExitCode}" != 0 || "${httpCode}" != 200 ]] || ! @awk@ '
@@ -79,7 +79,7 @@
 @@ -852,3 +853,7 @@
        # Move the downloaded list to the final location
 -      mv "${listCurlBuffer}" "${saveLocation}"
-+      if $managed; then
++      if [[ "$managed" == true ]]; then
 +        pihole-FTL "${gravity_type}" parseList "${listCurlBuffer}" "${gravityTEMPfile}" "${adlistID}" || return 1
 +        [[ "$(pihole-FTL sqlite3 -readonly "${gravityTEMPfile}" "SELECT count(*) >= 50000 FROM gravity WHERE adlist_id=${adlistID};")" == 1 ]] || return 1
 +      fi
@@ -88,7 +88,7 @@
 @@ -862,3 +867,3 @@
        # Add domains to database table file
 -      pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}"
-+      $managed || pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}" || return 1
++      [[ "$managed" == true ]] || pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}" || return 1
        done="true"
 @@ -1150,5 +1155,8 @@
 
