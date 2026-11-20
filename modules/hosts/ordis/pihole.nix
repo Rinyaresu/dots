@@ -43,7 +43,8 @@ in
             interface = "eno1";
             upstreams = lib.mkForce [ "127.0.0.1#5053" ];
             hosts = [ "${lan} ${name}" ];
-            queryLogging = true;
+            # FTL's history database is independent of the dnsmasq text log.
+            queryLogging = false;
           };
           database = {
             DBinterval = 60;

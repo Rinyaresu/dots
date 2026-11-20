@@ -233,6 +233,15 @@ pkgs.testers.runNixOSTest {
             "sqlite3 /var/lib/pihole/pihole-FTL.db \"SELECT count(DISTINCT domain) FROM queries WHERE client='192.168.1.65' AND domain IN ('allowed.fixture.example.com','ads.fixture.example.com')\" | grep -Fx 2",
             timeout=100,
         )
+        server.succeed(
+            "umask 077; curl -fsS -H 'Content-Type: application/json' --data-binary @/run/test-auth.json http://127.0.0.1:8080/api/auth "
+            "| jq -er '.session.sid | \"sid: \\(.)\"' >/run/session-header"
+        )
+        for suffix in ["", "?blocked=true"]:
+            server.succeed(
+                f"curl -fsS -H @/run/session-header 'http://127.0.0.1:8080/api/stats/top_clients{suffix}' "
+                "| jq -e 'any(.clients[]; .ip == \"192.168.1.65\" and .count > 0)'"
+            )
         server.succeed("grep -E '^[[:space:]]*DBinterval = 60$' /etc/pihole/pihole.toml; grep -E '^[[:space:]]*maxDBdays = 7$' /etc/pihole/pihole.toml")
 
     with subtest("untrusted interface and IPv6 transport are denied"):
@@ -309,6 +318,10 @@ pkgs.testers.runNixOSTest {
             server.fail("systemctl start pihole-ftl-setup")
             server.succeed("sha256sum -c /run/last-working")
             dns("fixture50001.example.com", expected="0.0.0.0")
+        upstream.succeed("awk 'BEGIN{for(i=1;i<=50002;i++)printf \"0.0.0.0 fixture%d.example.com\\n\",i; print \"0.0.0.0 ads.fixture.example.com\"}' >/run/hosts-fixture/hosts; systemctl start hosts-fixture")
+        server.wait_until_succeeds("curl -fsS --max-time 2 http://192.168.1.50:8888/hosts -o /dev/null")
+        server.succeed("systemctl start pihole-ftl-setup")
+        dns("fixture50002.example.com", expected="0.0.0.0")
         operational()
   '';
 }
