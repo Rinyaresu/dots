@@ -207,7 +207,8 @@ pkgs.testers.runNixOSTest {
     with subtest("trusted HTTPS, LAN allowlist and observable DNS"):
         import shlex
         dns("pihole.home.arpa", expected="192.168.1.196")
-        client.fail("curl --connect-timeout 2 https://pihole.home.arpa:8443/admin/")
+        client.fail("curl --max-time 2 --resolve pihole.home.arpa:8443:192.168.1.196 https://pihole.home.arpa:8443/admin/")
+        server.fail("ss -ltn | grep ':8443 '")
         server.succeed(
             "umask 077; cd /var/lib/pihole; "
             "openssl req -x509 -newkey rsa:2048 -noenc -keyout /run/test-ca.key -out ordis-ca.crt -days 2 -subj /CN=Test-CA; "
@@ -291,7 +292,7 @@ pkgs.testers.runNixOSTest {
             "sqlite3 /var/lib/pihole/gravity.db \"UPDATE adlist SET comment='StevenBlack unified hosts snapshot (35c74714)'\""
         )
         upstream.succeed("install -d /run/hosts-fixture; awk 'BEGIN{for(i=1;i<=50001;i++)printf \"0.0.0.0 fixture%d.example.com\\n\",i; print \"0.0.0.0 ads.fixture.example.com\"}' >/run/hosts-fixture/hosts; systemctl start hosts-fixture")
-        upstream.wait_for_open_port(8888)
+        server.wait_until_succeeds("curl -fsS --max-time 2 http://192.168.1.50:8888/hosts -o /dev/null")
         server.succeed(
             "printf '%s\\n' '[Timer]' 'OnActiveSec=1' 'AccuracySec=1s' >/run/systemd/system/pihole-ftl-setup.timer; "
             "systemctl daemon-reload; systemctl start pihole-ftl-setup.timer"

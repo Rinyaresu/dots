@@ -68,9 +68,6 @@
           preFixup = ''
             (cd "$out"; ${pkgs.patch}/bin/patch -p1 < ${./api-no-argv-secrets.patch})
             ${pkgs.patch}/bin/patch -d "$out/share/pihole/advanced/Scripts" -p1 < ${./gravity-safe-update.patch}
-            substituteInPlace "$out/share/pihole/advanced/Scripts/gravity.sh" \
-              --replace-fail '@awk@' '${lib.getExe pkgs.gawk}' \
-              --replace-fail '@flock@' '${lib.getExe' pkgs.util-linux "flock"}'
           ''
           + old.preFixup;
         });

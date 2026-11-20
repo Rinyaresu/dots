@@ -62,7 +62,7 @@
 +  if [[ "$managed" == true ]]; then
 +    # Reject HTML, truncated/empty responses and non-hosts payloads before
 +    # changing the cache or replacing the last working database.
-+    if [[ "${curlExitCode}" != 0 || "${httpCode}" != 200 ]] || ! @awk@ '
++    if [[ "${curlExitCode}" != 0 || "${httpCode}" != 200 ]] || ! awk '
 +      { sub(/#.*/, "") }
 +      !NF { next }
 +      $1 == "0.0.0.0" && NF == 2 && $2 ~ /^[[:alnum:]_-]+(\.[[:alnum:]_-]+)+$/ { good++; next }
@@ -97,7 +97,7 @@
 -  rm "${gravityOLDfile}"
 +# Serialize the web action and the scheduled refresh on the same database.
 +exec 9>"${gravityDBfile}.lock" || exit 1
-+@flock@ -n 9 || exit 1
++flock -n 9 || exit 1
 +if [[ -f "${gravityDBfile}" ]] && [[ "$(pihole-FTL sqlite3 -readonly "${gravityDBfile}" 'PRAGMA journal_mode;')" != delete ]]; then
 +  echo 'Unexpected gravity journal mode; refusing to replace the database' >&2
 +  exit 1
