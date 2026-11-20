@@ -323,5 +323,33 @@ pkgs.testers.runNixOSTest {
         server.succeed("systemctl start pihole-ftl-setup")
         dns("fixture50002.example.com", expected="0.0.0.0")
         operational()
+
+    with subtest("SIGKILL at the Gravity publication boundary leaves a usable database"):
+        script = "${ordis.services.pihole-ftl.piholePackage}/share/pihole/advanced/Scripts/gravity.sh"
+        db = "/var/lib/pihole/gravity.db"
+        backup = "/var/lib/pihole/gravity_old.db"
+        upstream.succeed(
+            "printf '0.0.0.0 interrupted.example.com\\n' >>/run/hosts-fixture/hosts"
+        )
+        for after in [False, True]:
+            # Only the VM uses an instrumented copy; inject SIGKILL at the live rename.
+            source = server.succeed(f"cat {script}")
+            lines = source.splitlines(keepends=True)
+            index, = [
+                i for i, line in enumerate(lines)
+                if 'mv --no-copy -fT "${"$"}{gravityTEMPfile}" "${"$"}{gravityDBfile}"' in line
+            ]
+            lines.insert(index + int(after), '  kill -KILL "$$"\n')
+            server.succeed("printf %s " + shlex.quote("".join(lines)) + " >/run/gravity-interrupt; chmod 700 /run/gravity-interrupt")
+            server.must_fail("PIHOLE_MANAGED_HOSTS_URL=http://192.168.1.50:8888/hosts /run/gravity-interrupt -g")
+            for path in [db, backup]:
+                server.succeed(f"sqlite3 {path} 'PRAGMA quick_check' | grep -Fx ok")
+                server.succeed(f"sqlite3 {path} 'SELECT count(*) FROM gravity WHERE domain=\"fixture50002.example.com\"' | grep -Fx 1")
+            db_count = 1 if after else 0
+            for path, count in [(db, db_count), (backup, 0)]:
+                server.succeed(f"sqlite3 {path} 'SELECT count(*) FROM gravity WHERE domain=\"interrupted.example.com\"' | grep -Fx {count}")
+            dns("fixture50002.example.com", expected="0.0.0.0")
+        server.succeed("systemctl restart pihole-ftl")
+        dns("interrupted.example.com", expected="0.0.0.0")
   '';
 }

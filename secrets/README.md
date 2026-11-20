@@ -28,8 +28,71 @@ O build valida o ciphertext, não a descriptografia. VMs e checks usam material 
 
 Siga primeiro os [gates de Ordis](../README.md#manter-ordis). Em console ou sessão administrativa autorizada, use `sudo pihole-admin-hash` para provisionar ou rotacionar. Digite e confirme a senha interativamente. Não passe a senha por argumentos ou histórico, nem use tracing. O utilitário substitui atomicamente `/var/lib/pihole-secrets/admin-hash` (hash Balloon-SHA256 v6, root:root 0600, diretório 0700). Confira metadados: o validador de partida checa o formato, não dono/modo. Guarde a senha em recuperação privada independente.
 
-A rotação só entra em uso após reiniciar `pihole-ftl.service` com autorização. Confira FTL e `pihole-ftl-setup.service`; sem hash válido, não contorne a recusa nem tente forçar alteração do gravity. Administre pelo loopback via túnel, por exemplo `ssh -N -L 127.0.0.1:8080:127.0.0.1:8080 <conta>@<ordis>` (substitua os placeholders), e abra `http://127.0.0.1:8080/`. Valide recusa sem autenticação e login com a nova senha. Não abra o painel na rede.
+A rotação só entra em uso após reiniciar `pihole-ftl.service` com autorização. Confira FTL e `pihole-ftl-setup.service`; sem hash válido, não contorne a recusa nem tente forçar alteração do gravity. Administre pelo loopback via túnel, por exemplo `ssh -N -L 127.0.0.1:8080:127.0.0.1:8080 <conta>@<ordis>` (substitua os placeholders), e abra `http://127.0.0.1:8080/`. Valide recusa sem autenticação e login com a nova senha. Não habilite acesso direto ao painel fora da ACL declarada para Ordis.
 
 De um cliente LAN autorizado, compare o resultado de um nome permitido e um bloqueado com `dig @ENDERECO_LAN NOME` e `dig +tcp @ENDERECO_LAN NOME`. Confirme recusa a partir de rede/interface não autorizada, inclusive IPv6 como transporte; uma consulta AAAA via IPv4 é diferente. Confira o resolvedor do servidor de forma independente. Consulte [a política do host](../modules/hosts/ordis/pihole.nix) em vez de inferir alcance a partir de uma VM.
+
+### HTTPS privado de Ordis
+
+Em mídia removível **cifrada**, fora de Git e dos discos dos dois hosts, crie uma CA
+dedicada ao painel. Em máquina confiável, com a mídia montada e `umask 077`,
+rode (OpenSSL solicita a passphrase no terminal):
+
+```sh
+openssl req -new -x509 -newkey rsa:3072 -sha256 -days 1825 \
+  -keyout ca.key -out ca.crt -subj '/CN=Ordis Pi-hole CA' \
+  -addext 'basicConstraints=critical,CA:TRUE,pathlen:0' \
+  -addext 'keyUsage=critical,keyCertSign,cRLSign'
+```
+
+Guarde cópia cifrada e recuperável da CA; desmonte a mídia ao terminar. Não
+copie a chave ao Ordis ou ao perfil do navegador. Use uma passphrase própria
+com recuperação independente. Registre o vencimento da CA e sua impressão
+digital SHA-256 por canal confiável.
+
+No Ordis, na sessão administrativa interativa, use um diretório de preparação
+root:root 0700 em `/var/lib/pihole-secrets`. Com `umask 077`, gere uma chave
+RSA 3072 e CSR com `openssl req -new -newkey rsa:3072 -noenc -keyout leaf.key
+-out leaf.csr -subj /CN=pihole.home.arpa`. Envie **só o CSR** para assinar.
+Na sessão offline, escreva um arquivo de extensões:
+
+```ini
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth
+subjectAltName=DNS:pihole.home.arpa
+```
+
+Assine com `openssl x509 -req -in leaf.csr -CA ca.crt -CAkey ca.key
+-set_serial "0x$(openssl rand -hex 16)" -days 90 -sha256 -extfile leaf.ext
+-out leaf.crt`. Devolva **só** `leaf.crt` e `ca.crt`. Antes de instalar,
+confira a impressão digital da CA, SAN, prazo, chave correspondente e
+`openssl verify -purpose sslserver -verify_hostname pihole.home.arpa
+-CAfile ca.crt leaf.crt`. Instale a CA como
+`/var/lib/pihole/ordis-ca.crt` e o PEM concatenado **certificado, depois
+chave** como `/var/lib/pihole/ordis-tls.pem`, ambos root:pihole 0640. Use
+temporários no próprio diretório de destino e rename; não sobrescreva o
+PEM ativo in-place e não deixe cópias soltas da chave.
+
+No CachyOS, importe **apenas o certificado público da CA**, depois de comparar
+a impressão digital, nas Autoridades do perfil Firefox escolhido para
+administrar Ordis (confiança para identificar sites). Não instale globalmente
+nem no navegador corporativo. Teste com `curl --cacert ca.crt
+https://pihole.home.arpa:8443/admin/` e no próprio perfil, sem exceção TLS,
+usando o resolvedor real do desktop. Se um navegador usar DNS seguro externo
+para o nome local, mantenha o resolvedor do sistema nesse perfil. Faça login
+pelo navegador, sem capturar a senha, o histórico DNS ou cookies. Sem CA no
+perfil ou a partir de cliente não autorizado, teste a recusa separadamente.
+
+Verifique o vencimento mensalmente (`openssl x509 -checkend 2592000 -noout
+-in leaf.crt`). Com 30 dias de margem, emita nova leaf com chave nova;
+preserve o PEM anterior em armazenamento privado até validar; substitua
+atomicamente e reinicie **apenas** o FTL numa janela autorizada. Repita
+SSH/túnel, resolução e bloqueio, handshake e login real e confirme o
+serial/validade novos. Se a validação falhar, restaure o PEM anterior
+atomicamente e reinicie o FTL; o túnel é o caminho de recuperação. Na troca
+de CA, instale a nova confiança no cliente antes de servir a nova leaf e
+remova a antiga após validar; se houver comprometimento, remova imediatamente
+a confiança antiga e emita CA e leaf novas. Não use exceções de certificado.
 
 Antes de upgrade ou recuperação, pare os serviços com autorização e guarde cópia consistente dos bancos, hash e revisão em armazenamento privado protegido. Não copie SQLite ativo sem mecanismo transacional. Se setup ou swap do gravity falhar, preserve o estado e investigue antes de tentar novamente. Rollback Nix não remove listas persistentes, não reverte hash e pode ser incompatível com banco migrado. Para recuperar, use a revisão e a cópia compatíveis, confirme permissões, reinicie só com autorização e repita as verificações de DNS e autenticação. Não publique logs, histórico DNS ou backups.
