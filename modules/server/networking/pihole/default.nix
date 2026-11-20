@@ -67,10 +67,16 @@
           # Patch the installed tree before the original resholve preFixup.
           preFixup = ''
             (cd "$out"; ${pkgs.patch}/bin/patch -p1 < ${./api-no-argv-secrets.patch})
+            ${pkgs.patch}/bin/patch -d "$out/share/pihole/advanced/Scripts" -p1 < ${./gravity-safe-update.patch}
           ''
           + old.preFixup;
+          # FD-only flock has no command operand; resholve cannot infer that.
+          postFixup = (old.postFixup or "") + ''
+            substituteInPlace "$out/share/pihole/advanced/Scripts/gravity.sh" \
+              --replace-fail ": 'gravity-flock'" '${lib.getExe' pkgs.util-linux "flock"} -n 9 || exit 1'
+          '';
         });
-        privacyLevel = 3;
+        privacyLevel = lib.mkDefault 3;
         # No global firewall openings: each consumer selects its trusted network.
         settings = {
           dns = {
@@ -147,6 +153,23 @@
                     echo 'Invalid list API response; refusing to mutate gravity' >&2
                     return 1
                   fi
+                  if [[ "$address" == "''${PIHOLE_MANAGED_HOSTS_URL:-}" ]]; then
+                    local legacy
+                    legacy=$($jq -r '
+                      .lists[] | select(.comment == "StevenBlack unified hosts snapshot (35c74714)")
+                      | .address | select(test("^file:///nix/store/[a-z0-9]{32}-hosts$"))
+                    ' <<< "$existing")
+                    if [[ -n "$legacy" ]] && [ "$($jq '.lists | length' <<< "$existing")" = 1 ]; then
+                      # Keep the id, group assignments and active domains even if the new source fails.
+                      ${lib.getExe pkgs.sqlite} -bail -cmd '.timeout 5000' '${cfg.settings.files.gravity}' \
+                        "UPDATE adlist SET address='$address', comment='StevenBlack Unified Hosts' WHERE address='$legacy';"
+                      return
+                    fi
+                    if ! $jq -e --arg url "$address" 'all(.lists[]; .address == $url and .enabled == true)' <<< "$existing" >/dev/null; then
+                      echo 'Unexpected blocklist configuration; refusing to replace existing lists' >&2
+                      return 1
+                    fi
+                  fi
                   if $jq -e --arg address "$address" 'any(.lists[]?; .address == $address)' <<< "$existing" >/dev/null; then
                     echo "List already registered: $address"
                     return
@@ -201,6 +224,17 @@
               # The upstream CLI needs an ephemeral token. Keep it in tmpfs only.
               ${pkgs.coreutils}/bin/ln -sfn /run/pihole-cli/cli_pw /etc/pihole/cli_pw
               export FTLCONF_webserver_api_pwhash="$hash"
+              if [[ -n "''${PIHOLE_TLS_NAME:-}" ]]; then
+                openssl=${lib.getExe pkgs.openssl}
+                cert_key=$("$openssl" x509 -in "$PIHOLE_TLS_PEM" -pubkey -noout 2>/dev/null || true)
+                pem_key=$("$openssl" pkey -in "$PIHOLE_TLS_PEM" -passin pass: -pubout 2>/dev/null || true)
+                if [[ -z "$cert_key" || "$cert_key" != "$pem_key" ]] ||
+                   ! "$openssl" verify -purpose sslserver -verify_hostname "$PIHOLE_TLS_NAME" \
+                     -CAfile "${cfg.stateDirectory}/ordis-ca.crt" "$PIHOLE_TLS_PEM" >/dev/null 2>&1; then
+                  echo 'Ordis TLS credential not usable; keeping the loopback recovery listener' >&2
+                  export FTLCONF_webserver_port="''${FTLCONF_webserver_port:-127.0.0.1:8080}"
+                fi
+              fi
               exec ${lib.getExe config.services.pihole-ftl.package} no-daemon
             ''
           );

@@ -1,0 +1,173 @@
+--- a/gravity.sh
++++ b/gravity.sh
+@@ -132,33 +132,33 @@
+   oldAvail=false
+   if [ "${availableBlocks}" -gt "$((gravityBlocks * 2))" ] && [ -f "${gravityDBfile}" ]; then
+     oldAvail=true
+-    cp -p "${gravityDBfile}" "${gravityOLDfile}"
+-  fi
+-
+-  # Drop the gravity and antigravity tables + subsequent VACUUM the current
+-  # database for compaction
+-  output=$({ printf ".timeout 30000\\nDROP TABLE IF EXISTS gravity;\\nDROP TABLE IF EXISTS antigravity;\\nVACUUM;\\n" | pihole-FTL sqlite3 -ni "${gravityDBfile}"; } 2>&1)
+-  status="$?"
+-
+-  if [[ "${status}" -ne 0 ]]; then
+-    echo -e "\\n  ${CROSS} Unable to clean current database for backup\\n  ${output}"
+-  else
+-    # Check if the backup directory exists
+-    if [ ! -d "${gravityBCKdir}" ]; then
+-      mkdir -p "${gravityBCKdir}" && chown pihole:pihole "${gravityBCKdir}"
+-    fi
+-
+-    # If multiple gravityBCKfile's are present (appended with a number), rotate them
+-    # We keep at most 10 backups
+-    rotate_gravity_backup
+-
+-    # Move the old database to the backup location
+-    mv "${gravityDBfile}" "${gravityBCKfile}.1"
+-  fi
+-
+-
+-  # Move the new database to the correct location
+-  mv "${gravityTEMPfile}" "${gravityDBfile}"
++    local backup="${gravityOLDfile}.new"
++    rm -f "${backup}" || return 1
++    pihole-FTL sqlite3 -bail "${gravityDBfile}" ".backup ${backup}" || return 1
++    fix_owner_permissions "${backup}" || return 1
++    sync "${backup}" || return 1
++    mv --no-copy -fT "${backup}" "${gravityOLDfile}" || return 1
++    sync "${gravityDIR}" || return 1
++  elif [[ -f "${gravityDBfile}" ]]; then
++    echo 'Insufficient space to preserve the current Gravity database' >&2
++    return 1
++  fi
++
++  # Persist the complete candidate before publishing its name. Never copy over
++  # the live file; after rename, persist the directory entry too.
++  [[ "$(pihole-FTL sqlite3 -bail -readonly "${gravityTEMPfile}" 'PRAGMA quick_check;')" == ok ]] || return 1
++  sync "${gravityTEMPfile}" || return 1
++  mv --no-copy -fT "${gravityTEMPfile}" "${gravityDBfile}" || return 1
++  sync "${gravityDIR}" || return 1
++
++  # A cache is expendable; an interruption here can leave the old cache, not
++  # an incomplete live DB. The next managed refresh always downloads anew.
++  if [[ -n "${managedCacheSrc:-}" ]]; then
++    if ! mv -fT "${managedCacheSrc}" "${managedCacheDst}" ||
++       ! fix_owner_permissions "${managedCacheDst}"; then
++      echo 'Gravity committed, but managed cache could not be refreshed' >&2
++    fi
++  fi
+   echo -e "${OVER}  ${TICK} ${str}"
+
+   if $oldAvail; then
+@@ -579,7 +579,7 @@
+     if [[ "${check_url}" =~ ${regex} ]]; then
+       echo -e "  ${CROSS} Invalid Target"
+     else
+-      timeit gravity_DownloadBlocklistFromUrl "${url}" "${sourceIDs[$i]}" "${saveLocation}" "${compression}" "${adlist_type}" "${domain}"
++      timeit gravity_DownloadBlocklistFromUrl "${url}" "${sourceIDs[$i]}" "${saveLocation}" "${compression}" "${adlist_type}" "${domain}" || return 1
+     fi
+     echo ""
+   done
+@@ -617,7 +617,11 @@
+   local listCurlBuffer str curlVersion curlOutput httpCode curlErrorMsg="" curlExitCode="" curlOutputFormat=""
+   local success="" ip customUpstreamResolver="" file_path ip_addr port blocked=false download=true
+   # modifiedOptions is an array to store all the options used to check if the adlist has been changed upstream
+-  local modifiedOptions=()
++  local modifiedOptions=() managed=false
++  if [[ "$url" == "${PIHOLE_MANAGED_HOSTS_URL:-}" ]]; then
++    managed=true
++    modifiedOptions=(--proto '=https,http' --proto-redir '=https' --max-time 90 --max-filesize 16777216)
++  fi
+
+   # Create temp file to store content on disk instead of RAM
+   # We don't use '--suffix' here because not all implementations of mktemp support it, e.g. on Alpine
+@@ -627,7 +631,7 @@
+
+   # For all remote files, we try to determine if the file has changed to skip
+   # downloading them whenever possible.
+-  if [[ $url != "file"* ]]; then
++  if [[ $url != "file"* ]] && [[ "$managed" != true ]]; then
+     # Use the HTTP ETag header to determine if the file has changed if supported
+     # by curl. Using ETags is supported by raw.githubusercontent.com URLs.
+     if [[ "${etag_support}" == true ]]; then
+@@ -838,6 +842,22 @@
+     ;;
+   esac
+
++  if [[ "$managed" == true ]]; then
++    # Reject HTML, truncated/empty responses and non-hosts payloads before
++    # changing the cache or replacing the last working database.
++    if [[ "${curlExitCode}" != 0 || "${httpCode}" != 200 ]] || ! awk '
++      { sub(/#.*/, "") }
++      !NF { next }
++      $1 == "0.0.0.0" && NF == 2 && $2 ~ /^[[:alnum:]_-]+(\.[[:alnum:]_-]+)+$/ { good++; next }
++      { other++ }
++      END { exit !(good >= 50000 && other <= 100) }
++    ' "${listCurlBuffer}"; then
++      rm -f "${listCurlBuffer}"
++      echo 'Managed hosts download failed validation; retaining live Gravity and cache' >&2
++      return 1
++    fi
++  fi
++
+   local done="false"
+   # Determine if the blocklist was downloaded and saved correctly
+   if [[ "${success}" == true ]]; then
+@@ -850,17 +870,24 @@
+     # Check if $listCurlBuffer is a non-zero length file
+     elif [[ -s "${listCurlBuffer}" ]]; then
+       # Move the downloaded list to the final location
+-      mv "${listCurlBuffer}" "${saveLocation}"
++      if [[ "$managed" == true ]]; then
++        pihole-FTL "${gravity_type}" parseList "${listCurlBuffer}" "${gravityTEMPfile}" "${adlistID}" || return 1
++        [[ "$(pihole-FTL sqlite3 -readonly "${gravityTEMPfile}" "SELECT count(*) >= 50000 FROM gravity WHERE adlist_id=${adlistID};")" == 1 ]] || return 1
++        managedCacheSrc="${listCurlBuffer}"
++        managedCacheDst="${saveLocation}"
++      else
++        mv "${listCurlBuffer}" "${saveLocation}" || return 1
++      fi
+       # Ensure the file has the correct permissions
+-      fix_owner_permissions "${saveLocation}"
++      [[ "$managed" == true ]] || fix_owner_permissions "${saveLocation}"
+       # Compare lists if they are identical
+-      compareLists "${adlistID}" "${saveLocation}"
++      [[ "$managed" == true ]] || compareLists "${adlistID}" "${saveLocation}"
+       # Set permissions for the *.etag file
+       if [[ -f "${saveLocation}.etag" ]]; then
+           fix_owner_permissions "${saveLocation}.etag"
+       fi
+       # Add domains to database table file
+-      pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}"
++      [[ "$managed" == true ]] || pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}" || return 1
+       done="true"
+     else
+       # Fall back to previously cached list if $listCurlBuffer is empty
+@@ -1148,9 +1175,12 @@
+   exit 1
+ fi
+
+-# Remove OLD (backup) gravity file, if it exists
+-if [[ -f "${gravityOLDfile}" ]]; then
+-  rm "${gravityOLDfile}"
++# Serialize the web action and the scheduled refresh on the same database.
++exec 9>"${gravityDBfile}.lock" || exit 1
++: 'gravity-flock'
++if [[ -f "${gravityDBfile}" ]] && [[ "$(pihole-FTL sqlite3 -readonly "${gravityDBfile}" 'PRAGMA journal_mode;')" != delete ]]; then
++  echo 'Unexpected gravity journal mode; refusing to replace the database' >&2
++  exit 1
+ fi
+
+ # Trap Ctrl-C
+@@ -1200,8 +1230,8 @@
+ fix_owner_permissions "${gravityTEMPfile}"
+
+ # Build the tree
+-timeit gravity_build_tree gravity
+-timeit gravity_build_tree antigravity
++timeit gravity_build_tree gravity || exit 1
++timeit gravity_build_tree antigravity || exit 1
+
+ # Compute numbers to be displayed (do this after building the tree to get the
+ # numbers quickly from the tree instead of having to scan the whole database)
