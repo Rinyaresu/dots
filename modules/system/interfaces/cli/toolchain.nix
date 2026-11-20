@@ -27,6 +27,10 @@
     ];
   };
 
+  flake.modules.homeManager.desktop-personal = { pkgs, ... }: {
+    home.packages = [ pkgs.python3 ];
+  };
+
   perSystem = { pkgs, ... }: {
     devShells.default = pkgs.mkShell {
       packages = with pkgs; [

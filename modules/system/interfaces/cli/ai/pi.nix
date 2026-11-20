@@ -25,6 +25,11 @@
     home.sessionVariables.PI_NODE_BIN = "${pkgs.nodejs_24}/bin/node";
   };
 
+  flake.modules.homeManager.desktop-personal = { pkgs, ... }: {
+    home.packages = [ pkgs.nodejs_24 ];
+    home.sessionPath = [ "$HOME/.pi/agent/bin" ];
+  };
+
   flake.modules.homeManager.base = {
     imports = [ config.flake.modules.homeManager.pi ];
   };
