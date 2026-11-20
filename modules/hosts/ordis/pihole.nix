@@ -4,14 +4,20 @@ let
 in
 {
   configurations.nixos.ordis.modules.pihole-local =
-    { config, lib, ... }:
+    { config, lib, pkgs, ... }:
     let
       lan = "192.168.1.196";
-      name = "pihole.home.arpa";
+      name = "pihole.rinyaresu.dev";
+      tlsDirectory = "/var/lib/pihole-tls";
+      publish = pkgs.writeShellApplication {
+        name = "ordis-pihole-publish-tls";
+        runtimeInputs = [ pkgs.coreutils pkgs.openssl pkgs.systemd ];
+        text = builtins.readFile ./pihole-publish-tls.sh;
+      };
       source = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts";
       webPorts = [
         "127.0.0.1:8080"
-        "${lan}:8443os"
+        "${lan}:443os"
       ];
       ftl = config.services.pihole-ftl;
     in
@@ -50,7 +56,8 @@ in
             DBinterval = 60;
             maxDBdays = 7;
           };
-          webserver.tls.cert = lib.mkForce "${ftl.stateDirectory}/ordis-tls.pem";
+          misc.dnsmasq_lines = [ "local=/${name}/" ];
+          webserver.tls.cert = lib.mkForce "${tlsDirectory}/server.pem";
         };
         lists = [
           {
@@ -80,7 +87,38 @@ in
       # Don't let the proxy module introduce a loopback host resolver on port 53.
       networking.nameservers = lib.mkForce [ ];
 
+      security.acme = {
+        acceptTerms = true;
+        certs.${name} = {
+          dnsProvider = "cloudflare";
+          dnsResolver = "1.1.1.1:53";
+          credentialFiles.CF_DNS_API_TOKEN_FILE = "/var/lib/pihole-secrets/cloudflare-dns-token";
+        };
+      };
+
+      systemd.tmpfiles.rules = [ "d ${tlsDirectory} 0750 root pihole -" ];
+
       systemd.services = {
+        "acme-order-renew-${name}".serviceConfig = {
+          # Retry publication even when lego has no new order. The separate
+          # unit runs without access to the DNS API credential.
+          ExecStartPost = lib.mkAfter [
+            "+${lib.getExe' pkgs.systemd "systemctl"} --no-block start pihole-publish-tls.service"
+          ];
+        };
+        pihole-publish-tls = {
+          after = [ "acme-order-renew-${name}.service" ];
+          serviceConfig = {
+            Type = "oneshot";
+            UMask = "0077";
+            ExecStart = "${lib.getExe publish} ${name} /var/lib/acme/${name} ${tlsDirectory} ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+            ProtectSystem = "strict";
+            ReadWritePaths = [ tlsDirectory ];
+            ProtectHome = true;
+            PrivateTmp = true;
+            NoNewPrivileges = true;
+          };
+        };
         pihole-ftl = {
           wants = lib.mkForce [ "dnscrypt-proxy.service" ];
           after = [ "dnscrypt-proxy.service" ];
@@ -88,6 +126,7 @@ in
             PIHOLE_MANAGED_HOSTS_URL = source;
             PIHOLE_TLS_NAME = name;
             PIHOLE_TLS_PEM = ftl.settings.webserver.tls.cert;
+            PIHOLE_TLS_CA = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
           };
         };
         pihole-ftl-setup = {
@@ -107,7 +146,7 @@ in
       networking.firewall.extraCommands = ''
         iptables -A nixos-fw -i eno1 -s 192.168.1.0/24 -p udp --dport 53 -j nixos-fw-accept
         iptables -A nixos-fw -i eno1 -s 192.168.1.0/24 -p tcp --dport 53 -j nixos-fw-accept
-        iptables -A nixos-fw -i eno1 -s 192.168.1.65/32 -d ${lan}/32 -p tcp --dport 8443 -j nixos-fw-accept
+        iptables -A nixos-fw -i eno1 -s 192.168.1.65/32 -d ${lan}/32 -p tcp --dport 443 -j nixos-fw-accept
       '';
     };
 }

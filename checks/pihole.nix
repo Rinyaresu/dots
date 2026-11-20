@@ -41,7 +41,8 @@ pkgs.testers.runNixOSTest {
         inherit (ordis.services.pihole-ftl) privacyLevel;
         settings = {
           inherit (ordis.services.pihole-ftl.settings) database;
-          webserver.tls.cert = lib.mkForce "/var/lib/pihole/ordis-tls.pem";
+          webserver.tls.cert = lib.mkForce "/var/lib/pihole-tls/server.pem";
+          misc.dnsmasq_lines = ordis.services.pihole-ftl.settings.misc.dnsmasq_lines;
         };
         macvendorURL = "file:///dev/null";
         lists = [
@@ -57,7 +58,16 @@ pkgs.testers.runNixOSTest {
       };
       systemd.services.pihole-ftl.environment = {
         inherit (ordis.systemd.services.pihole-ftl.environment) PIHOLE_TLS_NAME PIHOLE_TLS_PEM;
+        PIHOLE_TLS_CA = "/var/lib/pihole-tls/test-ca.crt";
       };
+      systemd.services.pihole-publish-tls = {
+        inherit (ordis.systemd.services.pihole-publish-tls) serviceConfig;
+        serviceConfig.ExecStart = lib.mkForce (builtins.replaceStrings
+          [ "/var/lib/acme/pihole.rinyaresu.dev" "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt" ]
+          [ "/run/test-acme" "/var/lib/pihole-tls/test-ca.crt" ]
+          ordis.systemd.services.pihole-publish-tls.serviceConfig.ExecStart);
+      };
+      systemd.tmpfiles.rules = [ "d /var/lib/pihole-tls 0750 root pihole -" ];
       environment.systemPackages = [
         pkgs.openssl
         pkgs.jq
@@ -206,28 +216,43 @@ pkgs.testers.runNixOSTest {
 
     with subtest("trusted HTTPS, LAN allowlist and observable DNS"):
         import shlex
-        dns("pihole.home.arpa", expected="192.168.1.196")
-        client.fail("curl --max-time 2 --resolve pihole.home.arpa:8443:192.168.1.196 https://pihole.home.arpa:8443/admin/")
-        server.fail("ss -ltn | grep ':8443 '")
+        dns("pihole.rinyaresu.dev", expected="192.168.1.196")
+        client.fail("curl --max-time 2 --resolve pihole.rinyaresu.dev:443:192.168.1.196 https://pihole.rinyaresu.dev/admin/")
+        server.fail("ss -ltn | grep ':443 '")
+        ca_path = "/var/lib/pihole-tls/test-ca.crt"
         server.succeed(
-            "umask 077; cd /var/lib/pihole; "
-            "openssl req -x509 -newkey rsa:2048 -noenc -keyout /run/test-ca.key -out ordis-ca.crt -days 2 -subj /CN=Test-CA; "
-            "openssl req -new -newkey rsa:2048 -noenc -keyout /run/test-leaf.key -out /run/test-leaf.csr -subj /CN=pihole.home.arpa; "
-            "printf 'subjectAltName=DNS:pihole.home.arpa\\nextendedKeyUsage=serverAuth\\n' >/run/test-leaf.ext; "
-            "openssl x509 -req -in /run/test-leaf.csr -CA ordis-ca.crt -CAkey /run/test-ca.key -days 1 -extfile /run/test-leaf.ext -out /run/test-leaf.crt; "
-            "cat /run/test-leaf.crt /run/test-leaf.key >ordis-tls.pem; chgrp pihole ordis-tls.pem ordis-ca.crt; chmod 640 ordis-tls.pem ordis-ca.crt; "
-            "systemctl restart pihole-ftl"
+            f"umask 077; mkdir /run/test-acme; cd /run/test-acme; "
+            f"openssl req -x509 -newkey rsa:2048 -noenc -keyout /run/test-ca.key -out {ca_path} -days 4 -subj /CN=Test-CA; "
+            f"chgrp pihole {ca_path}; chmod 640 {ca_path}; "
+            "openssl req -new -newkey rsa:2048 -noenc -keyout key.pem -out leaf.csr -subj /CN=pihole.rinyaresu.dev; "
+            "printf 'subjectAltName=DNS:pihole.rinyaresu.dev\\nextendedKeyUsage=serverAuth\\n' >leaf.ext"
         )
-        ca = shlex.quote(server.succeed("cat /var/lib/pihole/ordis-ca.crt"))
+        def issue(serial: int) -> None:
+            server.succeed(f"cd /run/test-acme; openssl x509 -req -in leaf.csr -CA {ca_path} -CAkey /run/test-ca.key -days 3 -set_serial {serial} -extfile leaf.ext -out fullchain.pem")
+        issue(1)
+        server.fail("systemctl start pihole-publish-tls")
+        server.succeed("touch /run/test-acme/acme-success; systemctl start pihole-publish-tls")
+        ca = shlex.quote(server.succeed(f"cat {ca_path}"))
         client.succeed(f"printf %s {ca} > /run/test-ca.crt; ip addr add 192.168.1.10/24 dev eth1")
-        endpoint = "https://pihole.home.arpa:8443/admin/"
-        resolve = "--resolve pihole.home.arpa:8443:192.168.1.196"
+        endpoint = "https://pihole.rinyaresu.dev/admin/"
+        resolve = "--resolve pihole.rinyaresu.dev:443:192.168.1.196"
         verified = f"curl -fsSL --max-time 3 --cacert /run/test-ca.crt {resolve}"
         client.succeed(f"{verified} --interface 192.168.1.65 {endpoint} -o /dev/null")
         client.fail(f"{verified} --interface 192.168.1.10 {endpoint}")
         client.fail(f"curl -fsS --max-time 3 {resolve} {endpoint}")
-        server.succeed("ss -ltn | grep '192.168.1.196:8443'; ss -ltn | grep '127.0.0.1:8080'")
-        server.fail("ss -ltn | grep -E '(0.0.0.0|\\*|\\[::\\]):8443'")
+        server.succeed("ss -ltn | grep '192.168.1.196:443'; ss -ltn | grep '127.0.0.1:8080'")
+        server.fail("ss -ltn | grep -E '(0.0.0.0|\\*|\\[::\\]):443 '")
+        pid = server.succeed("systemctl show -P MainPID pihole-ftl").strip()
+        server.succeed("systemctl start pihole-publish-tls")
+        assert server.succeed("systemctl show -P MainPID pihole-ftl").strip() == pid
+        server.succeed("cp /run/test-acme/key.pem /run/test-key-save; cp /run/test-ca.key /run/test-acme/key.pem; sha256sum /var/lib/pihole-tls/server.pem >/run/tls-digest")
+        server.fail("systemctl start pihole-publish-tls")
+        server.succeed("sha256sum -c /run/tls-digest; mv /run/test-key-save /run/test-acme/key.pem")
+        assert server.succeed("systemctl show -P MainPID pihole-ftl").strip() == pid
+        issue(2)
+        server.succeed("systemctl start pihole-publish-tls; openssl x509 -in /var/lib/pihole-tls/server.pem -noout -serial | grep -Fx serial=02")
+        assert server.succeed("systemctl show -P MainPID pihole-ftl").strip() != pid
+        client.succeed(f"{verified} --interface 192.168.1.65 {endpoint} -o /dev/null")
         operational()
         server.wait_until_succeeds(
             "sqlite3 /var/lib/pihole/pihole-FTL.db \"SELECT count(DISTINCT domain) FROM queries WHERE client='192.168.1.65' AND domain IN ('allowed.fixture.example.com','ads.fixture.example.com')\" | grep -Fx 2",
@@ -250,8 +275,8 @@ pkgs.testers.runNixOSTest {
         client.succeed("ip -6 addr add fd00:1::10/64 dev eth1 nodad")
         client.succeed("ping -6 -c 1 fd00:1::196")
         outside.succeed("ip addr add 192.168.2.10/24 dev eth1")
-        outside.fail("curl --max-time 3 https://192.168.2.196:8443/admin/")
-        client.fail("curl --max-time 3 'https://[fd00:1::196]:8443/admin/'")
+        outside.fail("curl -k --max-time 3 https://192.168.2.196/admin/")
+        client.fail("curl -k --max-time 3 'https://[fd00:1::196]/admin/'")
         for transport in ["", "+tcp"]:
             outside.fail(f"dig @192.168.2.196 allowed.fixture.example.com +time=1 +tries=1 {transport}")
             client.fail(f"dig @fd00:1::196 allowed.fixture.example.com +time=1 +tries=1 {transport}")
