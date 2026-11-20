@@ -232,7 +232,7 @@
                    ! "$openssl" verify -purpose sslserver -verify_hostname "$PIHOLE_TLS_NAME" \
                      -CAfile "${cfg.stateDirectory}/ordis-ca.crt" "$PIHOLE_TLS_PEM" >/dev/null 2>&1; then
                   echo 'Ordis TLS credential not usable; keeping the loopback recovery listener' >&2
-                  export FTLCONF_webserver_port=127.0.0.1:8080
+                  export FTLCONF_webserver_port="''${FTLCONF_webserver_port:-127.0.0.1:8080}"
                 fi
               fi
               exec ${lib.getExe config.services.pihole-ftl.package} no-daemon
