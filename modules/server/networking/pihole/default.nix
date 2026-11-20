@@ -230,7 +230,8 @@
                 pem_key=$("$openssl" pkey -in "$PIHOLE_TLS_PEM" -passin pass: -pubout 2>/dev/null || true)
                 if [[ -z "$cert_key" || "$cert_key" != "$pem_key" ]] ||
                    ! "$openssl" verify -purpose sslserver -verify_hostname "$PIHOLE_TLS_NAME" \
-                     -CAfile "${cfg.stateDirectory}/ordis-ca.crt" "$PIHOLE_TLS_PEM" >/dev/null 2>&1; then
+                     -CAfile "''${PIHOLE_TLS_CA:-${cfg.stateDirectory}/ordis-ca.crt}" \
+                     -untrusted "$PIHOLE_TLS_PEM" "$PIHOLE_TLS_PEM" >/dev/null 2>&1; then
                   echo 'Ordis TLS credential not usable; keeping the loopback recovery listener' >&2
                   export FTLCONF_webserver_port="''${FTLCONF_webserver_port:-127.0.0.1:8080}"
                 fi

@@ -34,6 +34,29 @@ De um cliente LAN autorizado, compare o resultado de um nome permitido e um bloq
 
 ### HTTPS privado de Ordis
 
+O painel atual usa `https://pihole.rinyaresu.dev/admin/`. O Pi-hole resolve o
+nome para o IPv4 LAN; não publique A/AAAA na Cloudflare. O nome do certificado
+público pode aparecer nos logs públicos de Certificate Transparency.
+
+Crie um token Cloudflare com **Zone / DNS / Edit** e **Zone / Zone / Read**
+restritas à zona `rinyaresu.dev`. Provisione só o valor em
+`/var/lib/pihole-secrets/cloudflare-dns-token` (`root:root`, `0600`) usando
+entrada interativa sem eco; não use argumentos, variáveis de ambiente do
+shell, OAuth do MCP, Git ou Nix store. O systemd entrega o arquivo ao lego
+como credencial. Em rotação, troque o arquivo atomicamente e só revogue o
+token antigo após verificar o novo.
+
+Verifique `acme-renew-pihole.rinyaresu.dev.timer` e os resultados de
+`acme-order-renew-pihole.rinyaresu.dev.service` e `pihole-publish-tls.service`.
+Para tentar novamente após corrigir uma falha, inicie a unidade de renovação; se só a
+publicação falhou, inicie apenas `pihole-publish-tls.service`. Nunca remova
+`/var/lib/pihole-tls/server.pem` para forçar emissão: o último PEM válido
+continua em uso se a renovação falhar. Se ele expirar, use o túnel SSH para
+`127.0.0.1:8080`; não ignore alertas TLS. Preserve o material legado para
+rollback à geração 9 até encerrar a migração.
+
+#### CA privada legada (somente rollback à geração 9)
+
 No CachyOS, fora de Git e do Nix store, crie uma CA dedicada ao painel.
 Use um diretório privado em tmpfs e `umask 077`. O OpenSSL pede a
 passphrase no terminal; não passe por argumentos, ambiente ou histórico:
