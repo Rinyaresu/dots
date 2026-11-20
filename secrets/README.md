@@ -48,17 +48,18 @@ openssl req -new -x509 -newkey rsa:3072 -sha256 -days 1825 \
 No Bitwarden pessoal, crie uma nota segura dedicada à CA do Pi-hole:
 anexe o PEM **ENCRYPTED PRIVATE KEY** se o cofre oferecer anexos; caso
 contrário, guarde o PEM cifrado na nota, sem retirar a passphrase. Guarde
-também o certificado público e sua impressão digital SHA-256. Não guarde a
-passphrase nessa nota nem dependa apenas desse cofre para recuperá-la.
+também o certificado público e sua impressão digital SHA-256. Se guardar a
+passphrase no Bitwarden, use uma nota distinta. Duas notas no mesmo cofre
+não são backup nem oferecem separação contra comprometimento do cofre.
 
-Mantenha uma segunda cópia do PEM cifrado e do certificado público em
-armazenamento sob seu controle, fora do Bitwarden e separado do CachyOS
-(por exemplo, mídia externa ou backup cifrado independente). Não conte
-com exportação do cofre para recuperar um anexo. Recupere as duas cópias
-separadamente e valide que a chave abre com a passphrase e que sua chave
-pública coincide com a do certificado. Remova a cópia de trabalho quando
-terminar; nunca copie a chave da CA para Ordis, Git, Nix store, logs ou
-perfil do navegador.
+Para Ordis, foi aceito operar só com o Bitwarden, sem backup independente.
+Recupere o PEM do cofre em tmpfs, valide que abre com a passphrase e confira
+que a chave pública coincide com a do certificado. Remova a cópia de
+trabalho quando terminar; nunca copie a chave da CA para Ordis, Git, Nix
+store, logs ou perfil do navegador. Se perder acesso ao cofre ou à chave,
+não poderá renovar com a CA antiga: gere nova CA e leaf, substitua a
+confiança no Firefox e remova a CA antiga. Se houver suspeita de exposição,
+remova a confiança antiga imediatamente.
 
 No Ordis, na sessão administrativa interativa, use um diretório de preparação
 root:root 0700 em `/var/lib/pihole-secrets`. Com `umask 077`, gere uma chave
