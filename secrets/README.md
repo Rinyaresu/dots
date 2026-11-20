@@ -46,9 +46,9 @@ shell, OAuth do MCP, Git ou Nix store. O systemd entrega o arquivo ao lego
 como credencial. Em rotação, troque o arquivo atomicamente e só revogue o
 token antigo após verificar o novo.
 
-Verifique `acme-order-renew-pihole.rinyaresu.dev.timer`, o resultado da
-unidade `.service` de mesmo nome e `pihole-publish-tls.service`. Para tentar
-novamente após corrigir uma falha, inicie a unidade de renovação; se só a
+Verifique `acme-renew-pihole.rinyaresu.dev.timer` e os resultados de
+`acme-order-renew-pihole.rinyaresu.dev.service` e `pihole-publish-tls.service`.
+Para tentar novamente após corrigir uma falha, inicie a unidade de renovação; se só a
 publicação falhou, inicie apenas `pihole-publish-tls.service`. Nunca remova
 `/var/lib/pihole-tls/server.pem` para forçar emissão: o último PEM válido
 continua em uso se a renovação falhar. Se ele expirar, use o túnel SSH para
