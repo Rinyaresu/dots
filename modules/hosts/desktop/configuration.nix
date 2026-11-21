@@ -12,6 +12,12 @@
     networking.hostName = "desktop";
     system.stateVersion = "26.05";
     boot.loader.timeout = 5;
+    # Boot Windows through its independent UEFI entry, without embedding its ESP ID.
+    boot.loader.limine.extraEntries = ''
+      /Windows 11
+          protocol: efi_boot_entry
+          entry: Windows Boot Manager
+    '';
     console.useXkbConfig = true;
     boot.kernelParams = [ "usbcore.autosuspend=-1" ];
     zramSwap = {
@@ -25,6 +31,5 @@
       LC_NAME = "pt_BR.UTF-8";
       LC_TELEPHONE = "pt_BR.UTF-8";
     };
-    # Boot Windows through its independent UEFI entry, without embedding its ESP ID.
   };
 }
