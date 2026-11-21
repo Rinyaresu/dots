@@ -12,7 +12,7 @@
           cfg = nixosConfigurations.${host}.config;
           files = cfg.home-manager.users.rinyaresu.home.file or { };
         in
-        !(cfg.sops.secrets ? rinyaresu-ssh-key)
+        !((cfg.sops.secrets or { }) ? rinyaresu-ssh-key)
         && !(files ? ".ssh/id_ed25519");
       home = system.home-manager.users.rinyaresu;
       secret = system.sops.secrets.rinyaresu-ssh-key;
