@@ -328,7 +328,7 @@ pkgs.testers.runNixOSTest {
             f"sed -E 's@https://cdn[.]jsdelivr[.]net/gh/hagezi/dns-blocklists.latest/adblock/pro[.]txt@{url}@g;"
             f"s@https://cdn[.]jsdelivr[.]net/gh/hagezi/dns-blocklists.latest/adblock/gambling[.]medium[.]txt@{gambling_url}@g' {managed_sql} >/run/managed-lists.sql; "
             "printf '%s\\n' '[Service]' 'ExecStart=' 'ExecStart=/run/managed-setup' "
-            f"'Environment=PIHOLE_MANAGED_HOSTS_URL={url}' 'Environment=PIHOLE_MANAGED_GAMBLING_URL={gambling_url}' "
+            f"'Environment=PIHOLE_MANAGED_PRO_URL={url}' 'Environment=PIHOLE_MANAGED_GAMBLING_URL={gambling_url}' "
             "'Environment=PIHOLE_MANAGED_LISTS_SQL=/run/managed-lists.sql' "
             "> /run/systemd/system/pihole-ftl-setup.service.d/90-fixture.conf; systemctl daemon-reload; "
             "sqlite3 /var/lib/pihole/gravity.db \"UPDATE adlist SET comment='StevenBlack unified hosts snapshot (35c74714)'; "
@@ -369,7 +369,7 @@ pkgs.testers.runNixOSTest {
             server.fail("systemctl start pihole-ftl-setup")
             server.succeed("sha256sum -c /run/last-working")
             dns("fixture50001.example.com", expected="0.0.0.0")
-        upstream.succeed("awk 'BEGIN{for(i=1;i<=50002;i++)printf \"0.0.0.0 fixture%d.example.com\\n\",i; print \"0.0.0.0 ads.fixture.example.com\"}' >/run/hosts-fixture/hosts; systemctl start hosts-fixture")
+        upstream.succeed("awk 'BEGIN{for(i=1;i<=50002;i++)printf \"||fixture%d.example.com^\\n\",i; print \"||ads.fixture.example.com^\"}' >/run/hosts-fixture/hosts; systemctl start hosts-fixture")
         server.wait_until_succeeds("curl -fsS --max-time 2 http://192.168.1.50:8888/hosts -o /dev/null")
         server.succeed("systemctl start pihole-ftl-setup")
         dns("fixture50002.example.com", expected="0.0.0.0")
@@ -380,7 +380,7 @@ pkgs.testers.runNixOSTest {
         db = "/var/lib/pihole/gravity.db"
         backup = "/var/lib/pihole/gravity_old.db"
         upstream.succeed(
-            "printf '0.0.0.0 interrupted.example.com\\n' >>/run/hosts-fixture/hosts"
+            "printf '||interrupted.example.com^\\n' >>/run/hosts-fixture/hosts"
         )
         for after in [False, True]:
             # Only the VM uses an instrumented copy; inject SIGKILL at the live rename.
@@ -393,7 +393,7 @@ pkgs.testers.runNixOSTest {
             lines.insert(index + int(after), '  kill -KILL "$$"\n')
             server.succeed("printf %s " + shlex.quote("".join(lines)) + " >/run/gravity-interrupt; chmod 700 /run/gravity-interrupt")
             server.succeed(
-                "rc=0; PIHOLE_MANAGED_HOSTS_URL=http://192.168.1.50:8888/hosts "
+                "rc=0; PIHOLE_MANAGED_PRO_URL=http://192.168.1.50:8888/hosts "
                 "/run/gravity-interrupt -g || rc=$?; test \"$rc\" = 137"
             )
             for path in [db, backup]:

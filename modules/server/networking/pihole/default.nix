@@ -154,7 +154,7 @@
                     return 1
                   fi
                   if [[ -n "''${PIHOLE_MANAGED_LISTS_SQL:-}" ]] &&
-                     [[ "$address" == "''${PIHOLE_MANAGED_HOSTS_URL:-}" || "$address" == "''${PIHOLE_MANAGED_GAMBLING_URL:-}" ]]; then
+                     [[ "$address" == "''${PIHOLE_MANAGED_PRO_URL:-}" || "$address" == "''${PIHOLE_MANAGED_GAMBLING_URL:-}" ]]; then
                     # Gravity reconciles these rows in the candidate, not in the live DB.
                     return
                   fi

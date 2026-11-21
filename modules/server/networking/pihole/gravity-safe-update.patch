@@ -97,7 +97,7 @@
    # modifiedOptions is an array to store all the options used to check if the adlist has been changed upstream
 -  local modifiedOptions=()
 +  local modifiedOptions=() managed=false
-+  if [[ "$url" == "${PIHOLE_MANAGED_HOSTS_URL:-}" || "$url" == "${PIHOLE_MANAGED_GAMBLING_URL:-}" ]]; then
++  if [[ "$url" == "${PIHOLE_MANAGED_PRO_URL:-}" || "$url" == "${PIHOLE_MANAGED_GAMBLING_URL:-}" ]]; then
 +    managed=true
 +    modifiedOptions=(--proto '=https,http' --proto-redir '=https' --max-time 90 --max-filesize 16777216)
 +  fi
@@ -113,22 +113,19 @@
      # Use the HTTP ETag header to determine if the file has changed if supported
      # by curl. Using ETags is supported by raw.githubusercontent.com URLs.
      if [[ "${etag_support}" == true ]]; then
-@@ -838,6 +849,22 @@
+@@ -838,6 +849,19 @@
      ;;
    esac
 
 +  if [[ "$managed" == true ]]; then
-+    # Reject HTML, truncated/empty responses and non-hosts payloads before
-+    # changing the cache or replacing the last working database.
 +    if [[ "${curlExitCode}" != 0 || "${httpCode}" != 200 ]] || ! awk '
-+      { sub(/#.*/, "") }
-+      !NF { next }
-+      $1 == "0.0.0.0" && NF == 2 && $2 ~ /^[[:alnum:]_-]+(\.[[:alnum:]_-]+)+$/ { good++; next }
++      /^!/ || /^\[Adblock Plus\]$/ || !NF { next }
++      /^\|\|[[:alnum:]_-]+(\.[[:alnum:]_-]+)+\^$/ { good++; next }
 +      { other++ }
-+      END { exit !(good >= 50000 && other <= 100) }
++      END { exit !(good >= 50000 && other == 0) }
 +    ' "${listCurlBuffer}"; then
 +      rm -f "${listCurlBuffer}"
-+      echo 'Managed hosts download failed validation; retaining live Gravity and cache' >&2
++      echo "Managed list failed validation: ${url}; retaining live Gravity and cache" >&2
 +      return 1
 +    fi
 +  fi
@@ -136,16 +133,16 @@
    local done="false"
    # Determine if the blocklist was downloaded and saved correctly
    if [[ "${success}" == true ]]; then
-@@ -850,17 +877,24 @@
+@@ -850,17 +874,24 @@
      # Check if $listCurlBuffer is a non-zero length file
      elif [[ -s "${listCurlBuffer}" ]]; then
        # Move the downloaded list to the final location
 -      mv "${listCurlBuffer}" "${saveLocation}"
 +      if [[ "$managed" == true ]]; then
-+        pihole-FTL "${gravity_type}" parseList "${listCurlBuffer}" "${gravityTEMPfile}" "${adlistID}" || return 1
-+        [[ "$(pihole-FTL sqlite3 -readonly "${gravityTEMPfile}" "SELECT count(*) >= 50000 FROM gravity WHERE adlist_id=${adlistID};")" == 1 ]] || return 1
 +        managedCacheSrc+=("${listCurlBuffer}")
 +        managedCacheDst+=("${saveLocation}")
++        pihole-FTL "${gravity_type}" parseList "${listCurlBuffer}" "${gravityTEMPfile}" "${adlistID}" || return 1
++        [[ "$(pihole-FTL sqlite3 -readonly "${gravityTEMPfile}" "SELECT count(*) >= 50000 FROM gravity WHERE adlist_id=${adlistID};")" == 1 ]] || return 1
 +      else
 +        mv "${listCurlBuffer}" "${saveLocation}" || return 1
 +      fi
@@ -165,7 +162,7 @@
        done="true"
      else
        # Fall back to previously cached list if $listCurlBuffer is empty
-@@ -1148,9 +1182,12 @@
+@@ -1148,9 +1179,12 @@
    exit 1
  fi
 
@@ -181,7 +178,15 @@
  fi
 
  # Trap Ctrl-C
-@@ -1200,8 +1237,8 @@
+@@ -1189,6 +1223,7 @@
+
+ # Gravity downloads blocklists next
+ if ! gravity_DownloadBlocklists; then
++  rm -f "${gravityTEMPfile}" "${managedCacheSrc[@]}"
+   echo -e "   ${CROSS} Unable to create gravity database. Please try again later. If the problem persists, please contact support."
+   exit 1
+ fi
+@@ -1200,8 +1235,8 @@
  fix_owner_permissions "${gravityTEMPfile}"
 
  # Build the tree

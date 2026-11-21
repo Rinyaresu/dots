@@ -28,7 +28,7 @@ in
       pro = "${baseURL}/pro.txt";
       gambling = "${baseURL}/gambling.medium.txt";
       managedLists = {
-        PIHOLE_MANAGED_HOSTS_URL = pro;
+        PIHOLE_MANAGED_PRO_URL = pro;
         PIHOLE_MANAGED_GAMBLING_URL = gambling;
         PIHOLE_MANAGED_LISTS_SQL = pkgs.writeText "ordis-gravity-lists.sql" (
           builtins.replaceStrings [ "@pro@" "@gambling@" ] [ pro gambling ] (
