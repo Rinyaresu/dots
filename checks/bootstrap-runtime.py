@@ -23,6 +23,15 @@ def userctl(command):
     return as_user(f"systemctl --user {command}")
 
 
+# Exercise the production Pi loader with disposable state and no account settings.
+load_local_extensions = as_user(
+    'set -eu; scratch=$(mktemp -d); trap \'rm -rf -- "$scratch"\' EXIT; '
+    'pi_bin=$(realpath "$(command -v pi)"); '
+    'env -i HOME="$scratch" PATH="$PATH" PI_CODING_AGENT_DIR="$scratch" PI_OFFLINE=1 '
+    'node /etc/bootstrap-pi-imports.mjs "$pi_bin" "$HOME/.pi/agent" "$scratch"'
+)
+
+
 machine.start()
 machine.wait_for_unit("multi-user.target")
 machine.wait_for_unit("sshd.service")
@@ -130,7 +139,8 @@ with subtest("The native agent with only an unrelated identity cannot restore ei
     machine.succeed(as_user(f"ssh-add -D; ssh-add {home}/unrelated"))
     identities = machine.succeed(as_user("ssh-add -l")).splitlines()
     assert len(identities) == 1 and "bootstrap-unrelated" in identities[0]
-    machine.succeed(userctl(f"daemon-reload; systemctl --user start {restore_unit}"))
+    machine.succeed(userctl(f"is-enabled --quiet {restore_unit}"))
+    machine.wait_until_succeeds(userctl(f"is-active --quiet {restore_unit}"))
     time.sleep(11)
     machine.succeed(userctl(f"is-active --quiet {restore_unit}"))
     machine.succeed(
@@ -138,8 +148,17 @@ with subtest("The native agent with only an unrelated identity cannot restore ei
         f"test ! -e {home}/bootstrap-prompts && test ! -e /srv/git/requests"
     )
 
-with subtest("Graphical askpass fixture unlocks the SOPS key and the real bootstrap clones in order"):
+with subtest("Graphical login starts automatic restore; an npm failure is logged and retried"):
+    tarball = "/run/bootstrap-npm-fixture/bootstrap-dep-1.0.0.tgz"
+    extension = f"{home}/.pi/agent/extensions/herdr-codemode"
+    machine.succeed(f"mv {tarball} {tarball}.unavailable")
     machine.succeed(userctl("set-environment DISPLAY=:fixture"))
+    machine.wait_until_succeeds(
+        as_user(f"journalctl --user -u {restore_unit} --no-pager") + " | grep -F 'npm ci falhou'",
+        timeout=60,
+    )
+    machine.succeed(f"test ! -e {extension}/node_modules && mv {tarball}.unavailable {tarball}")
+    # No restart: systemd must retry the failed install itself.
     machine.wait_until_succeeds(
         userctl(f"show -p SubState --value {restore_unit}") + " | grep -qx exited",
         timeout=60,
@@ -157,8 +176,10 @@ with subtest("Graphical askpass fixture unlocks the SOPS key and the real bootst
     assert len(identities) == 2
     required_fingerprint = machine.succeed(f"ssh-keygen -lf {fixture}/id_ed25519.pub").split()[1]
     assert any(required_fingerprint in line for line in identities)
-    output = machine.succeed(as_user("desktop-first-boot-check"))
-    assert "efibootmgr" in output and "1 extensões locais carregadas" in output
+    machine.succeed("systemctl is-active --quiet sops-install-secrets.service")
+    machine.succeed("systemctl is-active --quiet home-manager-rinyaresu.service")
+    machine.succeed(as_user('test -x "$(command -v efibootmgr)" && pi --version'))
+    assert "1 extensões locais carregadas" in machine.succeed(load_local_extensions)
 
 with subtest("Repetition preserves both repositories, local edits and the unlocked identity"):
     machine.succeed(as_user(
@@ -183,12 +204,10 @@ with subtest("Repetition preserves both repositories, local edits and the unlock
         "grep -qx local-agent-edit ~/.pi/fixture-config && ssh-add -l && "
         "test -f ~/.pi/agent/extensions/herdr-codemode/node_modules/local-marker"
     ))
-    machine.succeed(as_user("desktop-first-boot-check"))
+    machine.succeed(load_local_extensions)
 
-with subtest("First-boot probe rejects missing dependencies even if the unit previously succeeded"):
+with subtest("Pi loader rejects missing dependencies even after successful restore"):
     machine.succeed(as_user(
         "mv ~/.pi/agent/extensions/herdr-codemode/node_modules ~/saved-node-modules"
     ))
-    assert "Cannot find module 'bootstrap-dep'" in machine.fail(
-        as_user("desktop-first-boot-check") + " 2>&1"
-    )
+    assert "Cannot find module 'bootstrap-dep'" in machine.fail(load_local_extensions + " 2>&1")

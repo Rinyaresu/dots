@@ -63,7 +63,7 @@ nixos-enter --root /mnt -c 'passwd rinyaresu'
 
 No primeiro login, desbloqueie a identidade SSH quando o askpass solicitar. O `pi-config-restore` restaura Home e Agent se estiverem ausentes e instala as dependências de execução de `herdr-codemode` pelo lockfile do Agent. O primeiro restore precisa de acesso aos repositórios e ao registry npm. Ele não atualiza checkouts nem restaura sessões ou contas externas.
 
-Rode `desktop-first-boot-check` como o usuário do desktop. O comando confere SOPS, Home Manager, conclusão do restore, `efibootmgr` no PATH e o carregamento das extensões locais pelo Pi, sem consultar contas, enviar prompts ou executar `efibootmgr`. Em caso de falha, consulte `journalctl --user -u pi-config-restore.service` e tente novamente com `systemctl --user restart pi-config-restore.service`. Se um `node_modules` preexistente estiver danificado ou precisar acompanhar uma mudança no lockfile, mova-o para um backup antes de tentar novamente; o restore não o substitui automaticamente.
+O serviço inicia automaticamente no login e tenta novamente após falhas. Os erros ficam no journal do `pi-config-restore.service`. Dependências existentes não são sobrescritas; se estiverem danificadas, mova `node_modules` para um backup para permitir a reinstalação.
 
 O desktop usa Limine; preserve gerações e mídias de recuperação, e não dependa apenas de `nix-env --rollback` para o próximo boot.
 
