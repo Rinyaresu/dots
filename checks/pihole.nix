@@ -11,7 +11,13 @@ pkgs.testers.runNixOSTest {
   };
   nodes = {
     server = { lib, ... }: {
-      imports = [ piholeModule ];
+      imports = [
+        piholeModule
+        (import ../modules/hosts/ordis/_pihole-link-local.nix {
+          interface = "eth1";
+          address = "fe80::196:53";
+        })
+      ];
       virtualisation.memorySize = 1024;
       # gravity.sh insists on resolving these even with exclusively file:// lists.
       # Satisfy only this preflight locally; actual DNS answers come from upstream.
@@ -29,9 +35,14 @@ pkgs.testers.runNixOSTest {
         1
         2
       ];
+      # Keep production IPv4 ingress; the imported module supplies IPv6 rules.
       networking.firewall.extraCommands =
-        builtins.replaceStrings [ "eno1" ] [ "eth1" ]
-          ordis.networking.firewall.extraCommands;
+        lib.concatMapStringsSep "\n" (builtins.replaceStrings [ "eno1" ] [ "eth1" ])
+          (
+            builtins.filter (lib.hasPrefix "iptables ") (
+              lib.splitString "\n" ordis.networking.firewall.extraCommands
+            )
+          );
       services.pihole-ftl = {
         settings.dns = {
           inherit (ordis.services.pihole-ftl.settings.dns) hosts queryLogging;
@@ -271,17 +282,34 @@ pkgs.testers.runNixOSTest {
             )
         server.succeed("grep -E '^[[:space:]]*DBinterval = 60$' /etc/pihole/pihole.toml; grep -E '^[[:space:]]*maxDBdays = 7$' /etc/pihole/pihole.toml")
 
-    with subtest("untrusted interface and IPv6 transport are denied"):
-        # Add isolated addresses; these never reach the physical LAN.
-        server.succeed("ip addr add 192.168.2.196/24 dev eth2; ip -6 addr add fd00:1::196/64 dev eth1 nodad")
-        client.succeed("ip -6 addr add fd00:1::10/64 dev eth1 nodad")
-        client.succeed("ping -6 -c 1 fd00:1::196")
-        outside.succeed("ip addr add 192.168.2.10/24 dev eth1")
+    with subtest("dedicated IPv6 link-local DNS works for both LAN source scopes"):
+        server.wait_for_unit("pihole-link-local.service")
+        server.succeed("ip -6 addr del fe80::196:53/128 dev eth1; systemctl reload pihole-link-local.service")
+        server.wait_until_succeeds("ip -6 -o addr show dev eth1 to fe80::196:53/128 -tentative | grep -F 'fe80::196:53/128'")
+        server.succeed("ip -6 addr add 2001:db8:1::196/64 dev eth1 nodad")
+        client.succeed("ip -6 addr add 2001:db8:1::10/64 dev eth1 nodad")
+        for transport in ["+notcp", "+tcp"]:
+            for source in ["", "-b 2001:db8:1::10"]:
+                client.succeed(
+                    f"dig {source} @fe80::196:53%eth1 allowed.fixture.example.com AAAA +short +time=2 +tries=1 {transport} | grep -Fx 2001:db8::42"
+                )
+
+    with subtest("untrusted interface, non-allowlisted IPv6 destinations and IPv6 web are denied"):
+        # Give the off-LAN interface the same destination, to test the ingress
+        # rule rather than absence of an address or IPv6 routing.
+        server.succeed("ip addr add 192.168.2.196/24 dev eth2; ip -6 addr add fe80::196:53/128 dev eth2 nodad; ip -6 addr add fe80::197/128 dev eth1 nodad")
+        client.succeed("ping -6 -c 1 2001:db8:1::196; ping -6 -I eth1 -c 1 fe80::197")
+        outside.succeed("ip addr add 192.168.2.10/24 dev eth1; ping -6 -I eth1 -c 1 fe80::196:53")
         outside.fail("curl -k --max-time 3 https://192.168.2.196/admin/")
-        client.fail("curl -k --max-time 3 'https://[fd00:1::196]/admin/'")
-        for transport in ["", "+tcp"]:
+        client.fail("curl -k --max-time 3 'https://[2001:db8:1::196]/admin/'")
+        for transport in ["+notcp", "+tcp"]:
             outside.fail(f"dig @192.168.2.196 allowed.fixture.example.com +time=1 +tries=1 {transport}")
-            client.fail(f"dig @fd00:1::196 allowed.fixture.example.com +time=1 +tries=1 {transport}")
+            outside.fail(f"dig @fe80::196:53%eth1 allowed.fixture.example.com +time=1 +tries=1 {transport}")
+            for destination in ["2001:db8:1::196", "fe80::197%eth1"]:
+                client.fail(f"dig @{destination} allowed.fixture.example.com +time=1 +tries=1 {transport}")
+        server.succeed("ip -6 addr del fe80::196:53/128 dev eth2")
+        server.succeed("systemctl stop pihole-link-local.service; test -z \"$(ip -6 addr show dev eth1 to fe80::196:53/128)\"")
+        server.succeed("systemctl start pihole-link-local.service")
 
     with subtest("persistent database data and service recovery"):
         server.succeed("sqlite3 /var/lib/pihole/gravity.db \"INSERT INTO domainlist(type,domain,enabled,comment) VALUES(1,'persist.fixture.example.com',1,'persistence-marker');\"")
