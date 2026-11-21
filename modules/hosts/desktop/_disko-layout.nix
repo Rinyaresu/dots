@@ -36,7 +36,10 @@ let
   };
   check = lib.getExe guard;
   # exec is necessary: Disko only sets errexit later, in its create script.
-  disabledDestroy = "exec ${check} refuse-destroy";
+  disabledDestroy = ''
+    # shellcheck disable=SC2093
+    exec ${check} refuse-destroy
+  '';
   subvolume = mountpoint: {
     inherit mountpoint;
     mountOptions = [ "compress=zstd" ];
