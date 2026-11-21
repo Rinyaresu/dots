@@ -7,32 +7,16 @@ in
     {
       config,
       lib,
-      pkgs,
       ...
     }:
     {
       key = "${__curPos.file}#nixos.rinyaresu-ssh";
-      imports = [ nixos.sops ];
-      environment.systemPackages = [ pkgs.sops ];
-      sops.validateSopsFiles = true;
-      sops.secrets.rinyaresu-ssh-key = {
-        sopsFile = ../../../../secrets/ssh.yaml;
-        key = "ssh_private_key";
-        owner = "rinyaresu";
-        group = "users";
-        mode = "0600";
-      };
+      imports = [
+        nixos.rinyaresu-ssh-credential
+      ];
       systemd.tmpfiles.rules = [
         "d /home/rinyaresu/.ssh 0700 rinyaresu users -"
-        "d /var/lib/sops-nix 0700 root root -"
       ];
-      systemd.services.sops-install-secrets.preStart = ''
-        input=/var/lib/sops-nix/key.txt
-        test -f "$input"
-        test ! -L "$input"
-        test -s "$input"
-        test "$(${pkgs.coreutils}/bin/stat -c '%u:%g:%a' "$input")" = 0:0:600
-      '';
       systemd.services.home-manager-rinyaresu = {
         after = lib.mkAfter [ "sops-install-secrets.service" ];
         requires = [ "sops-install-secrets.service" ];
@@ -59,7 +43,7 @@ in
       }
     ];
     home.file.".ssh/id_ed25519".source =
-      config.lib.file.mkOutOfStoreSymlink "/run/secrets/rinyaresu-ssh-key";
+      config.lib.file.mkOutOfStoreSymlink osConfig.sops.secrets.rinyaresu-ssh-key.path;
   };
 
   flake.modules.nixos.desktop-personal = {

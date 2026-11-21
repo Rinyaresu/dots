@@ -1,0 +1,4 @@
+creation_rules:
+  # NixOS desktop only; reuse the public recipient already in the ciphertext.
+  - path_regex: ^modules/system/users/rinyaresu/ssh/secrets\.yaml$
+    age: age1m04mkdzl3c3aeygyl6s24l8mv8jfffn4y9knguepanphzrj4q36qym44py
