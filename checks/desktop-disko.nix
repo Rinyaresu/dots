@@ -70,7 +70,7 @@ pkgs.testers.runNixOSTest {
       useNixStoreImage = true;
       restrictNetwork = true;
       vlans = lib.mkForce [ ];
-      qemu.forceAccel = true;
+      qemu.forceAccel = lib.mkForce true;
     };
     environment.systemPackages = with pkgs; [
       btrfs-progs
