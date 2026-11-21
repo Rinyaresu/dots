@@ -354,6 +354,9 @@ pkgs.testers.runNixOSTest {
         operational()
         dns("persist.fixture.example.com", expected="0.0.0.0")
         assert server.succeed("cat /proc/sys/kernel/random/boot_id").strip() != old_boot
+        server.wait_for_unit("pihole-link-local.service")
+        server.wait_until_succeeds(alias_ready)
+        client.succeed("dig @fe80::196:53%eth1 allowed.fixture.example.com A +short +time=2 +tries=1 | grep -Fx 203.0.113.42")
         server.succeed("sha256sum -c /var/lib/pihole-secrets/checksums")
         server.succeed("sqlite3 /var/lib/pihole/gravity.db \"SELECT comment FROM domainlist WHERE domain='persist.fixture.example.com'\" | grep -Fx persistence-marker")
         server.succeed("test $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/stats/summary) = 401")
@@ -417,6 +420,8 @@ pkgs.testers.runNixOSTest {
             "systemctl stop hosts-fixture",
         ]:
             upstream.succeed(break_source)
+            # All three attempts must exercise Gravity, not systemd's start limit.
+            server.succeed("systemctl reset-failed pihole-ftl-setup")
             server.fail("systemctl start pihole-ftl-setup")
             server.succeed("sha256sum -c /run/last-working")
             dns("fixture50001.example.com", expected="0.0.0.0")
