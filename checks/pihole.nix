@@ -109,6 +109,17 @@ pkgs.testers.runNixOSTest {
         pkgs.curl
       ];
     };
+    lifecycle = { ... }: {
+      imports = [
+        (import ../modules/hosts/ordis/_pihole-link-local.nix {
+          interface = "eth1";
+          address = "fe80::196:53";
+        })
+      ];
+      virtualisation.vlans = [ 3 ];
+      networking.networkmanager.enable = true;
+      networking.useDHCP = false;
+    };
     upstream = { lib, ... }: {
       networking.interfaces.eth1.ipv4.addresses = lib.mkForce [
         {
@@ -146,6 +157,18 @@ pkgs.testers.runNixOSTest {
     upstream.wait_for_unit("dnsmasq.service")
     client.wait_for_unit("network.target")
     server.wait_for_unit("multi-user.target")
+
+    with subtest("NetworkManager restores the declared alias on activation and reapply"):
+        lifecycle.wait_for_unit("NetworkManager.service")
+        lifecycle.wait_for_unit("pihole-link-local.service")
+        alias_ready = "ip -6 -o addr show dev eth1 to fe80::196:53/128 -tentative | grep -F 'fe80::196:53/128'"
+        lifecycle.succeed("nmcli con add type ethernet ifname eth1 con-name dns-test ipv4.method disabled ipv6.method link-local")
+        lifecycle.succeed("nmcli con up dns-test")
+        lifecycle.wait_until_succeeds(alias_ready)
+        for action in ["nmcli con down dns-test; nmcli con up dns-test", "nmcli device reapply eth1"]:
+            # Ensure the result is not merely a pre-existing address retained by NM.
+            lifecycle.succeed(f"ip -6 addr del fe80::196:53/128 dev eth1; {action}")
+            lifecycle.wait_until_succeeds(alias_ready)
 
     with subtest("missing credential fails closed before setup mutates the database"):
         server.fail("systemctl is-active --quiet pihole-ftl.service")
