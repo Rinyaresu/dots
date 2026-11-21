@@ -53,7 +53,7 @@ SOPS/age guarda apenas **ciphertext** no Git. O módulo consumidor declara a fon
 
 ## Instalação e recuperação
 
-**Desktop NixOS:** obtenha uma revisão Git conhecida e o backup da identidade age por canais independentes da chave SSH que será restaurada. Antes de instalar, confirme o disco Linux e a EFI correta, preserve o disco/EFI do Windows, faça backup e confira as partições/subvolumes em [`_hardware-configuration.nix`](modules/hosts/desktop/_hardware-configuration.nix). O instalador só deve ser usado após montar corretamente o sistema em `/mnt` e provisionar a identidade age no destino, com permissões restritas.
+**Desktop NixOS:** obtenha uma revisão Git conhecida e o backup da identidade age por canais independentes da chave SSH que será restaurada. Antes de instalar, confirme o disco Linux e a EFI correta, preserve o disco/EFI do Windows, faça backup e confira o [layout Disko](modules/hosts/desktop/_disko-layout.nix). Para a migração do CachyOS, use somente o `formatMount` protegido, com revisão e autorização separadas; o procedimento específico está no [PR #16](https://github.com/Rinyaresu/dots/pull/16). O modo genérico de destruição está desabilitado. O instalador só deve ser usado após montar corretamente o sistema em `/mnt` e provisionar a identidade age no destino, com permissões restritas.
 
 ```sh
 # Somente após identificar e montar o alvo autorizado em /mnt
