@@ -61,7 +61,11 @@ nixos-install --option experimental-features 'nix-command flakes' --flake .#desk
 nixos-enter --root /mnt -c 'passwd rinyaresu'
 ```
 
-No primeiro boot, confira `sops-install-secrets.service`, `home-manager-rinyaresu.service` e o serviço de usuário `pi-config-restore`. O bootstrap desbloqueia SSH com askpass e restaura os repositórios Home e Agent depois que a identidade estiver disponível; não restaura sessões, contas externas nem dados ignorados. O desktop usa Limine; preserve gerações e mídias de recuperação, e não dependa apenas de `nix-env --rollback` para o próximo boot.
+No primeiro login, desbloqueie a identidade SSH quando o askpass solicitar. O `pi-config-restore` restaura Home e Agent se estiverem ausentes e instala as dependências de execução de `herdr-codemode` pelo lockfile do Agent. O primeiro restore precisa de acesso aos repositórios e ao registry npm. Ele não atualiza checkouts nem restaura sessões ou contas externas.
+
+Rode `desktop-first-boot-check` como o usuário do desktop. O comando confere SOPS, Home Manager, conclusão do restore, `efibootmgr` no PATH e o carregamento das extensões locais pelo Pi, sem consultar contas, enviar prompts ou executar `efibootmgr`. Em caso de falha, consulte `journalctl --user -u pi-config-restore.service` e tente novamente com `systemctl --user restart pi-config-restore.service`. Se um `node_modules` preexistente estiver danificado ou precisar acompanhar uma mudança no lockfile, mova-o para um backup antes de tentar novamente; o restore não o substitui automaticamente.
+
+O desktop usa Limine; preserve gerações e mídias de recuperação, e não dependa apenas de `nix-env --rollback` para o próximo boot.
 
 **Ordis:** antes de aplicar mudanças, confira uma conexão SSH **nova**, sudo, DNS e o estado efetivo do firewall. Guarde uma geração funcional e backups consistentes dos dados do Pi-hole/Gravity e das credenciais externas. Teste a alteração antes de persistir; rollback Nix não reverte bancos migrados. Em caso de falha de rede ou boot, use console físico ou mídia de recuperação. O Pi-hole mantém um listener de recuperação em `127.0.0.1:8080`, acessível por túnel SSH autorizado. Para o legado de CA privada da geração 9, consulte o histórico do [PR #6](https://github.com/Rinyaresu/dots/pull/6) e do [PR #7](https://github.com/Rinyaresu/dots/pull/7), além do material privado preservado.
 

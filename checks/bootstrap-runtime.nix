@@ -46,8 +46,11 @@ pkgs.testers.runNixOSTest {
       };
       programs.ssh.askPassword = lib.mkForce "${askpass}";
       environment.etc."bootstrap-runtime-manifest.json".source = config.system.build.sops-nix-manifest;
+      environment.etc."bootstrap-dependency-fixture.sh".source = ./bootstrap-dependency-fixture.sh;
       environment.systemPackages = [
         pkgs.age
+        pkgs.efibootmgr
+        pkgs.nodejs_24
         pkgs.git
         pkgs.openssh
         pkgs.python3

@@ -65,7 +65,11 @@ with subtest("Real local Git repositories and SSH accept only the SOPS fixture k
                 f"printf 'fixture-home-instructions\\n' > {working}/references/personal.md"
             )
         else:
-            machine.succeed(f"printf 'fixture-agent-config\\n' > {working}/fixture-config")
+            machine.succeed(
+                f"printf 'fixture-agent-config\\n' > {working}/fixture-config; "
+                "npm_config_offline=true bash /etc/bootstrap-dependency-fixture.sh "
+                f"{working}/agent/extensions/herdr-codemode /run/bootstrap-npm-fixture"
+            )
         machine.succeed(
             f"git -C {working} add .; "
             f"git -C {working} -c user.name=Fixture -c user.email=fixture@example.invalid "
@@ -153,11 +157,14 @@ with subtest("Graphical askpass fixture unlocks the SOPS key and the real bootst
     assert len(identities) == 2
     required_fingerprint = machine.succeed(f"ssh-keygen -lf {fixture}/id_ed25519.pub").split()[1]
     assert any(required_fingerprint in line for line in identities)
+    output = machine.succeed(as_user("desktop-first-boot-check"))
+    assert "efibootmgr" in output and "1 extensões locais carregadas" in output
 
 with subtest("Repetition preserves both repositories, local edits and the unlocked identity"):
     machine.succeed(as_user(
         "printf 'local-home-edit\\n' >> ~/personal/home/references/personal.md; "
-        "printf 'local-agent-edit\\n' >> ~/.pi/fixture-config"
+        "printf 'local-agent-edit\\n' >> ~/.pi/fixture-config; "
+        "touch ~/.pi/agent/extensions/herdr-codemode/node_modules/local-marker"
     ))
     before = machine.succeed(
         as_user("git -C ~/personal/home rev-parse HEAD; git -C ~/.pi rev-parse HEAD")
@@ -173,5 +180,15 @@ with subtest("Repetition preserves both repositories, local edits and the unlock
     ) == before
     machine.succeed(as_user(
         "grep -qx local-home-edit ~/personal/home/references/personal.md && "
-        "grep -qx local-agent-edit ~/.pi/fixture-config && ssh-add -l"
+        "grep -qx local-agent-edit ~/.pi/fixture-config && ssh-add -l && "
+        "test -f ~/.pi/agent/extensions/herdr-codemode/node_modules/local-marker"
     ))
+    machine.succeed(as_user("desktop-first-boot-check"))
+
+with subtest("First-boot probe rejects missing dependencies even if the unit previously succeeded"):
+    machine.succeed(as_user(
+        "mv ~/.pi/agent/extensions/herdr-codemode/node_modules ~/saved-node-modules"
+    ))
+    assert "Cannot find module 'bootstrap-dep'" in machine.fail(
+        as_user("desktop-first-boot-check") + " 2>&1"
+    )

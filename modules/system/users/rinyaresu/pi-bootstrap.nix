@@ -10,6 +10,17 @@
   flake.modules.homeManager.pi-bootstrap =
     { osConfig, pkgs, ... }:
     let
+      provision = pkgs.writeShellScript "pi-extension-deps" (
+        "export PATH=${
+          pkgs.lib.makeBinPath [
+            pkgs.nodejs_24
+            pkgs.coreutils
+            pkgs.diffutils
+          ]
+        }"
+        + "\n"
+        + builtins.readFile ./_pi-extension-deps.sh
+      );
       restore = pkgs.writeShellScript "pi-config-restore" ''
         set -euo pipefail
         umask 077
@@ -24,8 +35,7 @@
         fi
         if [[ -e "$HOME/personal/home" || -L "$HOME/personal/home" ]] \
           && [[ -e "$HOME/.pi" || -L "$HOME/.pi" ]]; then
-          echo "Pi: Home e ~/.pi já existem; nenhum arquivo foi alterado."
-          exit 0
+          exec ${provision}
         fi
 
         unlock=waiting
@@ -91,6 +101,7 @@
           exit 1
         fi
         restore_repo "$HOME/.pi" git@github.com:Rinyaresu/agent.git main agent
+        ${provision}
       '';
     in
     {
@@ -108,9 +119,42 @@
           message = "Pi bootstrap requires the native SSH agent and the pinned GitHub host key.";
         }
       ];
+      home.packages = [
+        (pkgs.writeShellScriptBin "desktop-first-boot-check" ''
+          set -euo pipefail
+          export PATH="$PATH:${
+            pkgs.lib.makeBinPath [
+              pkgs.coreutils
+              pkgs.systemd
+            ]
+          }"
+          for unit in sops-install-secrets.service home-manager-$(id -un).service; do
+            systemctl is-active --quiet "$unit" || { echo "$unit não está ativo; consulte o journal." >&2; exit 1; }
+            echo "$unit: ativo"
+          done
+          test -s "$HOME/.ssh/id_ed25519" && test -r "$HOME/.ssh/id_ed25519" || {
+            echo 'Identidade SSH provisionada pelo SOPS ausente ou ilegível.' >&2; exit 1;
+          }
+          systemctl --user is-active --quiet pi-config-restore.service &&
+            test "$(systemctl --user show -p SubState --value pi-config-restore.service)" = exited || {
+            echo 'pi-config-restore.service ainda não concluiu; use journalctl --user -u pi-config-restore.service.' >&2; exit 1;
+          }
+          test -f "$HOME/personal/home/references/personal.md"
+          command -v efibootmgr
+          pi_bin=$(realpath -- "$(command -v pi)")
+          "$pi_bin" --version
+          agent_dir=$(realpath -- "''${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}")
+          scratch=$(mktemp -d)
+          trap 'rm -rf -- "$scratch"' EXIT
+          # Run the loader with disposable state and no inherited account settings.
+          env -i HOME="$scratch" PATH=${pkgs.lib.makeBinPath [ pkgs.nodejs_24 ]} \
+            PI_CODING_AGENT_DIR="$scratch" PI_OFFLINE=1 \
+            node ${./_pi-local-extension-check.mjs} "$pi_bin" "$agent_dir" "$scratch"
+        '')
+      ];
       systemd.user.services.pi-config-restore = {
         Unit = {
-          Description = "Restore Pi configuration after graphical SSH unlock";
+          Description = "Restore Pi configuration and local extension dependencies";
           After = [ "ssh-agent.service" ];
           Wants = [ "ssh-agent.service" ];
           StartLimitIntervalSec = 0;

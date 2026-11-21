@@ -1,7 +1,9 @@
 { config, ... }:
 let
   desktop = config.flake.nixosConfigurations.desktop.config;
-  restoreScript = builtins.head desktop.home-manager.users.rinyaresu.systemd.user.services.pi-config-restore.Service.ExecStart;
+  home = desktop.home-manager.users.rinyaresu;
+  restoreScript = builtins.head home.systemd.user.services.pi-config-restore.Service.ExecStart;
+  pi = builtins.head (builtins.filter (package: (package.pname or "") == "pi") home.home.packages);
 in
 {
   perSystem = { pkgs, ... }: {
@@ -135,6 +137,9 @@ in
       "$TMPDIR/restore"
       [[ -L "$HOME/.pi" && "$(readlink "$HOME/.pi")" == preserved-link-target ]]
       [[ ! -e "$HOME/preserved-link-target" ]]
+      bash ${../../checks/bootstrap-dependencies.sh} "$TMPDIR/restore" ${pkgs.nodejs_24}/bin \
+        ${pi}/bin/pi ${../system/users/rinyaresu/_pi-local-extension-check.mjs} \
+        ${../../checks/bootstrap-dependency-fixture.sh}
       touch "$out"
     '';
   };
