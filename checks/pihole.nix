@@ -339,7 +339,7 @@ pkgs.testers.runNixOSTest {
         )
         upstream.succeed("install -d /run/hosts-fixture; awk 'BEGIN{for(i=1;i<=50001;i++)printf \"||fixture%d.example.com^\\n\",i; print \"||ads.fixture.example.com^\"}' >/run/hosts-fixture/hosts; systemctl start hosts-fixture")
         server.wait_until_succeeds("curl -fsS --max-time 2 http://192.168.1.50:8888/hosts -o /dev/null")
-        server.succeed("sha256sum /var/lib/pihole/gravity.db /etc/pihole/listsCache/*.domains >/run/before-migration")
+        server.succeed("sha256sum /var/lib/pihole/gravity.db /var/lib/pihole/listsCache/*.domains >/run/before-migration")
         server.fail("systemctl start pihole-ftl-setup")
         server.succeed("sha256sum -c /run/before-migration")
         upstream.succeed("awk 'BEGIN{for(i=1;i<=50001;i++)printf \"||wager%d.example.com^\\n\",i}' >/run/hosts-fixture/gambling")
@@ -354,7 +354,7 @@ pkgs.testers.runNixOSTest {
         assert server.succeed(f"{sql} 'SELECT id,address FROM adlist ORDER BY id'").splitlines() == [f"1|{url}", f"2|{gambling_url}"]
         assert server.succeed(f"{sql} 'SELECT * FROM adlist_by_group ORDER BY adlist_id,group_id'").splitlines() == ["1|0", "1|42", "2|0", "2|42"]
         server.succeed(f"{sql} 'SELECT count(*) FROM domainlist_by_group WHERE group_id=42' | grep -Fx 1")
-        server.succeed("sha256sum /var/lib/pihole/gravity.db /etc/pihole/listsCache/*.domains >/run/last-working")
+        server.succeed("sha256sum /var/lib/pihole/gravity.db /var/lib/pihole/listsCache/*.domains >/run/last-working")
         upstream.succeed("mv /run/hosts-fixture/gambling /run/gambling-working; printf '<html>error</html>\\n' >/run/hosts-fixture/gambling")
         server.fail("systemctl start pihole-ftl-setup")
         server.succeed("sha256sum -c /run/last-working")
@@ -391,11 +391,11 @@ pkgs.testers.runNixOSTest {
                 if 'mv --no-copy -fT "${"$"}{gravityTEMPfile}" "${"$"}{gravityDBfile}"' in line
             ]
             lines.insert(index + int(after), '  kill -KILL "$$"\n')
-            server.succeed("printf %s " + shlex.quote("".join(lines)) + " >/run/gravity-interrupt; chmod 700 /run/gravity-interrupt")
+            server.succeed("printf %s " + shlex.quote("".join(lines)) + " >/run/gravity-interrupt; chgrp pihole /run/gravity-interrupt; chmod 750 /run/gravity-interrupt")
             server.succeed(
                 f"rc=0; PIHOLE_MANAGED_PRO_URL={url} PIHOLE_MANAGED_GAMBLING_URL={gambling_url} "
                 "PIHOLE_MANAGED_LISTS_SQL=/run/managed-lists.sql "
-                "/run/gravity-interrupt -g || rc=$?; test \"$rc\" = 137"
+                "bash /run/gravity-interrupt -g || rc=$?; test \"$rc\" = 137"
             )
             for path in [db, backup]:
                 server.succeed(f"sqlite3 {path} 'PRAGMA quick_check' | grep -Fx ok")
