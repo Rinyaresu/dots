@@ -153,22 +153,10 @@
                     echo 'Invalid list API response; refusing to mutate gravity' >&2
                     return 1
                   fi
-                  if [[ "$address" == "''${PIHOLE_MANAGED_HOSTS_URL:-}" ]]; then
-                    local legacy
-                    legacy=$($jq -r '
-                      .lists[] | select(.comment == "StevenBlack unified hosts snapshot (35c74714)")
-                      | .address | select(test("^file:///nix/store/[a-z0-9]{32}-hosts$"))
-                    ' <<< "$existing")
-                    if [[ -n "$legacy" ]] && [ "$($jq '.lists | length' <<< "$existing")" = 1 ]; then
-                      # Keep the id, group assignments and active domains even if the new source fails.
-                      ${lib.getExe pkgs.sqlite} -bail -cmd '.timeout 5000' '${cfg.settings.files.gravity}' \
-                        "UPDATE adlist SET address='$address', comment='StevenBlack Unified Hosts' WHERE address='$legacy';"
-                      return
-                    fi
-                    if ! $jq -e --arg url "$address" 'all(.lists[]; .address == $url and .enabled == true)' <<< "$existing" >/dev/null; then
-                      echo 'Unexpected blocklist configuration; refusing to replace existing lists' >&2
-                      return 1
-                    fi
+                  if [[ -n "''${PIHOLE_MANAGED_LISTS_SQL:-}" ]] &&
+                     [[ "$address" == "''${PIHOLE_MANAGED_HOSTS_URL:-}" || "$address" == "''${PIHOLE_MANAGED_GAMBLING_URL:-}" ]]; then
+                    # Gravity reconciles these rows in the candidate, not in the live DB.
+                    return
                   fi
                   if $jq -e --arg address "$address" 'any(.lists[]?; .address == $address)' <<< "$existing" >/dev/null; then
                     echo "List already registered: $address"
