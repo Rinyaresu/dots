@@ -391,7 +391,7 @@ pkgs.testers.runNixOSTest {
                 if 'mv --no-copy -fT "${"$"}{gravityTEMPfile}" "${"$"}{gravityDBfile}"' in line
             ]
             lines.insert(index + int(after), '  kill -KILL "$$"\n')
-            server.succeed("printf %s " + shlex.quote("".join(lines)) + " >/run/gravity-interrupt; chmod 700 /run/gravity-interrupt")
+            server.succeed("printf %s " + shlex.quote("".join(lines)) + " >/run/gravity-interrupt; chgrp pihole /run/gravity-interrupt; chmod 750 /run/gravity-interrupt")
             server.succeed(
                 f"rc=0; PIHOLE_MANAGED_PRO_URL={url} PIHOLE_MANAGED_GAMBLING_URL={gambling_url} "
                 "PIHOLE_MANAGED_LISTS_SQL=/run/managed-lists.sql "
