@@ -9,7 +9,7 @@ fail() {
 }
 
 conflict() {
-  echo 'Pi: herdr-codemode: node_modules sem registro do bootstrap, alterado ou incompleto; destino preservado. Mova-o para um backup para permitir a instalação.' >&2
+  echo 'Pi: herdr-codemode: node_modules gerenciado alterado ou incompleto ou destino não é um diretório real; destino preservado. Mova-o para um backup para permitir a instalação.' >&2
   exit 78
 }
 
@@ -21,9 +21,13 @@ integrity() { node "$PI_DEPENDENCY_INTEGRITY" "$@"; }
 tree="$extension/node_modules"
 receipt=.dots-dependencies.json
 installed=
+previous=
 if [[ -e "$tree" || -L "$tree" ]]; then
-  [[ -f "$tree/$receipt" ]] || conflict
-  installed=$(integrity inspect "$extension") || conflict
+  [[ ! -L "$tree" && -d "$tree" ]] || conflict
+  previous=$(stat -c '%d:%i' -- "$tree")
+  if [[ -e "$tree/$receipt" || -L "$tree/$receipt" ]]; then
+    installed=$(integrity inspect "$extension") || conflict
+  fi
 fi
 wanted=$(integrity inputs "$extension") || fail 'manifesto ou lockfile ausente; checkout preservado.'
 [[ "$installed" != "$wanted" ]] || exit 0
@@ -64,7 +68,23 @@ fi
 for file in package.json package-lock.json; do
   cmp -s -- "$extension/$file" "$stage/$file" || fail 'manifestos mudaram durante a instalação; tente novamente.'
 done
-if [[ -n "$installed" ]]; then
+if [[ -n "$previous" ]]; then
+  [[ ! -L "$tree" && "$(stat -c '%d:%i' -- "$tree")" == "$previous" ]] || conflict
+  if [[ -z "$installed" ]]; then
+    [[ ! -e "$tree/$receipt" && ! -L "$tree/$receipt" ]] || conflict
+    if adopted=$(integrity matches "$extension" "$stage/node_modules"); then
+      printf '%s\n' "$adopted" > "$stage/adopted.json"
+      cmp -s -- "$extension/package-lock.json" "$stage/package-lock.json" &&
+        cmp -s -- "$extension/package.json" "$stage/package.json" ||
+        fail 'manifestos mudaram durante a adoção; tente novamente.'
+      [[ ! -L "$tree" && "$(stat -c '%d:%i' -- "$tree")" == "$previous" ]] || conflict
+      ln -T -- "$stage/adopted.json" "$tree/$receipt" ||
+        fail 'não foi possível registrar a adoção; dependências preservadas.'
+      echo 'Pi: node_modules existente de herdr-codemode verificado e adotado.'
+      exit 0
+    fi
+    echo 'Pi: node_modules existente diverge da referência; a árvore original ficará no backup.'
+  fi
   # Keep the exchanged tree even if a non-cooperating writer changed it
   # between inspection and exchange. Do not garbage collect user data.
   keep=1

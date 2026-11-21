@@ -82,10 +82,52 @@ expect_failure 'alterado ou incompleto'
 [[ "$(inode "$tree")" == "$second" && ! -e "$tree/bootstrap-dep" ]]
 test -f "$ext/preserved-package/index.js"
 
-# Existing (manual or pre-migration) installs have no trustworthy baseline.
+# Recreate a legacy install using npm install, not the bootstrap.
 mv "$tree" "$ext/preserved-tree"
-mkdir "$tree"
-printf manual > "$tree/local-marker"
-expect_failure 'sem registro do bootstrap'
-grep -Fx manual "$tree/local-marker"
-echo 'PASS clean install, no-op, serialized update, rollback preservation, retry, tamper detection and actual Pi import'
+export XDG_STATE_HOME="$HOME/.migration-state"
+state="$XDG_STATE_HOME/pi-extension-deps"
+(
+  cd "$ext"
+  umask 022
+  npm install --omit=dev --ignore-scripts --no-audit --no-fund
+)
+receipt="$tree/.dots-dependencies.json"
+legacy=$(inode "$tree")
+test ! -e "$receipt"
+"$restore" > "$TMPDIR/adoption.log"
+grep -F 'verificado e adotado' "$TMPDIR/adoption.log"
+[[ -f "$receipt" && "$(inode "$tree")" == "$legacy" ]]
+[[ -z "$(find "$state" -mindepth 1 -print -quit)" ]]
+run_probe 3.0.0
+[[ -z "$("$restore" 2>&1)" && "$(inode "$tree")" == "$legacy" ]]
+
+# A differing legacy tree must not be certified or discarded. Make the
+# reference unavailable first to exercise preservation and retry.
+mv "$tree" "$ext/adopted-tree"
+(
+  cd "$ext"
+  npm install --omit=dev --ignore-scripts --no-audit --no-fund
+)
+printf '// local dependency edit\n' >> "$tree/bootstrap-dep/index.js"
+ln -s bootstrap-dep/index.js "$tree/local-link"
+cp -a "$tree" "$TMPDIR/legacy-copy"
+legacy=$(inode "$tree")
+export npm_config_cache="$TMPDIR/migration-cache"
+mv "$dist/bootstrap-dep-3.0.0.tgz" "$dist/v3.saved"
+expect_failure 'npm ci falhou'
+[[ "$(inode "$tree")" == "$legacy" && ! -e "$receipt" ]]
+diff -r --no-dereference "$tree" "$TMPDIR/legacy-copy"
+[[ -z "$(find "$state" -mindepth 1 -print -quit)" ]]
+mv "$dist/v3.saved" "$dist/bootstrap-dep-3.0.0.tgz"
+"$restore" > "$TMPDIR/migration.log"
+grep -F 'a árvore original ficará no backup' "$TMPDIR/migration.log"
+backup=$(find "$state" -mindepth 2 -maxdepth 2 -name node_modules)
+[[ "$(inode "$backup")" == "$legacy" && "$(inode "$tree")" != "$legacy" ]]
+diff -r --no-dereference "$backup" "$TMPDIR/legacy-copy"
+test ! -e "$backup/.dots-dependencies.json"
+run_probe 3.0.0
+migrated=$(inode "$tree")
+export npm_config_cache="$TMPDIR/unused-migration-cache"
+[[ -z "$("$restore" 2>&1)" && "$(inode "$tree")" == "$migrated" ]]
+[[ ! -e "$npm_config_cache" ]]
+echo 'PASS clean install, no-op, serialized update, retry, tamper detection, legacy adoption, migration and actual Pi import'
