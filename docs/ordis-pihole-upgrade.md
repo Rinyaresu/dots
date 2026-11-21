@@ -1,6 +1,6 @@
 # Atualização do Pi-hole no Ordis
 
-Este procedimento não autoriza operação. Separe a aprovação da atualização, a ativação das listas e a adoção residencial. Use também o [procedimento de DNS residencial](ordis-household-dns.md) e o [guia de recuperação](../secrets/README.md#provisionar-e-recuperar-pi-hole).
+Este procedimento não autoriza operação. Separe a aprovação da atualização, a ativação das listas e a adoção residencial. Use também o [guia de recuperação](../secrets/README.md#provisionar-e-recuperar-pi-hole).
 
 ## Preparação e implantação
 
