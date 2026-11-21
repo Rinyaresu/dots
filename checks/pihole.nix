@@ -393,15 +393,16 @@ pkgs.testers.runNixOSTest {
             lines.insert(index + int(after), '  kill -KILL "$$"\n')
             server.succeed("printf %s " + shlex.quote("".join(lines)) + " >/run/gravity-interrupt; chmod 700 /run/gravity-interrupt")
             server.succeed(
-                "rc=0; PIHOLE_MANAGED_PRO_URL=http://192.168.1.50:8888/hosts "
+                f"rc=0; PIHOLE_MANAGED_PRO_URL={url} PIHOLE_MANAGED_GAMBLING_URL={gambling_url} "
+                "PIHOLE_MANAGED_LISTS_SQL=/run/managed-lists.sql "
                 "/run/gravity-interrupt -g || rc=$?; test \"$rc\" = 137"
             )
             for path in [db, backup]:
                 server.succeed(f"sqlite3 {path} 'PRAGMA quick_check' | grep -Fx ok")
-                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='fixture50002.example.com'\" | grep -Fx 1")
+                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='||fixture50002.example.com^'\" | grep -Fx 1")
             db_count = 1 if after else 0
             for path, count in [(db, db_count), (backup, 0)]:
-                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='interrupted.example.com'\" | grep -Fx {count}")
+                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='||interrupted.example.com^'\" | grep -Fx {count}")
             dns("fixture50002.example.com", expected="0.0.0.0")
         server.succeed("systemctl restart pihole-ftl")
         dns("interrupted.example.com", expected="0.0.0.0")
