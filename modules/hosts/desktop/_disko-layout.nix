@@ -35,10 +35,7 @@ let
     + builtins.readFile ./_disko-guard.sh;
   };
   check = lib.getExe guard;
-  disabledDestroy = ''
-    echo "Generic Disko destroy is disabled; use the guarded desktop formatMount script." >&2
-    exit 1
-  '';
+  disabledDestroy = "${check} refuse-destroy";
   subvolume = mountpoint: {
     inherit mountpoint;
     mountOptions = [ "compress=zstd" ];

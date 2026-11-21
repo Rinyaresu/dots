@@ -4,6 +4,10 @@ die() {
   exit 1
 }
 
+if [[ "${1:-}" == refuse-destroy ]]; then
+  die "generic Disko destroy is disabled; use the guarded desktop formatMount script"
+fi
+
 # No fallback to an enumerated name. Verify the object behind the symlink too.
 [[ -L "$target" && -b "$target" ]] || die "expected whole-disk by-id missing"
 disk=$(realpath -e -- "$target")
