@@ -28,6 +28,33 @@ nix build --no-link --rebuild -L ".#packages.x86_64-linux.$test_name"
 
 Se a derivação ainda não foi realizada, tente sem `--rebuild` e confira que a VM realmente executou; substituição por cache não conta. A CI verifica o merge sintético de PRs para `master` e constrói a matriz de hosts, sem rodar essas VMs. Avaliação verifica opções; build não ativa nada; VM usa credenciais e rede descartáveis. Nenhuma dessas provas comprova discos, firmware, GPU, login GitHub, grants da tailnet ou serviços no host físico.
 
+## CachyOS: Ethernet automática, Wi-Fi manual
+
+No desktop `cachyos`, use o procedimento abaixo a partir de um checkout revisado deste repositório. Ele não ativa o flake: no CachyOS, os perfis persistentes do NetworkManager em `/etc/NetworkManager/system-connections/` continuam sendo a fonte consumida no boot. O script reaplica a política nos perfis existentes, sem copiar keyfiles ou credenciais. Não é executado pelo NixOS, pelo Home Manager nem durante o boot.
+
+```sh
+scripts/cachyos/desktop-wifi-autoconnect apply
+scripts/cachyos/desktop-wifi-autoconnect check
+```
+
+O script confere o host, os UUIDs e as interfaces, exige Ethernet com `autoconnect=yes` e altera apenas `connection.autoconnect` do Wi-Fi para `no`. Se um perfil for recriado, confira o novo UUID e a interface antes de atualizar o script. Mudar a métrica não evita a ativação simultânea; manter um único perfil com autoconnect evita o cenário em que as duas interfaces disputaram endereços na mesma LAN e a Ethernet perdeu a rota IPv4.
+
+Não há fallback automático quando o cabo fica indisponível. Para conectar o Wi-Fi manualmente, use o seletor de redes ou `nmcli connection up uuid 98bdeb46-c25f-4272-ae50-64e93c955429`. Prefira usá-lo quando a Ethernet estiver indisponível: conectar ambos manualmente na mesma LAN pode reintroduzir o problema. O rollback é `scripts/cachyos/desktop-wifi-autoconnect rollback`: restaura o autoconnect do Wi-Fi sem ativá-lo explicitamente e pode permitir nova conexão automática imediatamente. Execute pelo console se a rede atual for indispensável.
+
+Num reboot supervisionado pelo console, sem conectar o Wi-Fi manualmente, confirme:
+
+```sh
+scripts/cachyos/desktop-wifi-autoconnect check
+nmcli device status
+ip -4 addr show dev enp7s0
+ip -4 route get 192.168.1.196
+journalctl -b -u NetworkManager --grep='auto-activating|conflict detected'
+dig @192.168.1.196 pihole.rinyaresu.dev A +short
+curl -fSs -o /dev/null -w '%{http_code}\n' --max-time 8 https://pihole.rinyaresu.dev/admin/
+```
+
+Espere `enp7s0` com `192.168.1.65/24`, rota ao Ordis via Ethernet com origem `.65`, `wlan0` desconectado, ausência de conflito e dashboard acessível com TLS. Confirme também uma nova conexão SSH ao Ordis pela LAN e Internet. Se a Ethernet falhar, preserve o journal e a tabela de rotas antes de tentar recuperação pelo console. Não teste a conexão manual do Wi-Fi enquanto estiver validando o boot.
+
 ## Instalar ou recuperar o desktop
 
 1. Antes de tocar nos discos, obtenha autorização para o alvo, ensaie o **perfil desktop** em VM descartável (o lab não substitui esse ensaio) e valide a revisão. Guarde backup dos dados a preservar fora do disco; confirme em outro aparelho acesso à identidade age, à revisão com ciphertext e à recuperação BitLocker. Separe mídia de recuperação, teclado, console e rede.
