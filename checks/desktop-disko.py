@@ -65,10 +65,10 @@ with subtest("format and mount only Linux using the evaluated layout"):
         dest = "/mnt" + (path if path != "/" else "")
         assert not fs["luks"]
         assert installer.succeed(f"findmnt -n -M {dest} -o FSTYPE").strip() == fs["fsType"]
-        assert (
-            installer.succeed(f"findmnt -n -M {dest} -o MAJ:MIN").strip()
-            == installer.succeed(f"lsblk -dnro MAJ:MIN {fs['device']}").strip()
-        )
+        # Btrfs mountinfo can report an anonymous superblock device number.
+        source = installer.succeed(f"findmnt -n -M {dest} -o SOURCE").strip()
+        expected = installer.succeed(f"realpath {fs['device']}").strip()
+        assert source.split("[", 1)[0] == expected, (source, expected)
         opts = installer.succeed(f"findmnt -n -M {dest} -o OPTIONS").strip().split(",")
         for option in fs["options"]:
             if option.startswith("subvol="):
