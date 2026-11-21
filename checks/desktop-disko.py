@@ -41,7 +41,7 @@ with subtest("reject missing or wrong target and protect Windows even if selecte
     reject(format_windows, "protected Windows EFI")
     reject(destroy, "generic Disko destroy is disabled")
     reject(legacy_destroy, "generic Disko destroy is disabled")
-    installer.succeed(f"mkdir -p /mnt; mount -t tmpfs tmpfs /mnt")
+    installer.succeed("mkdir -p /mnt; mount -t tmpfs tmpfs /mnt")
     reject(format_linux, "/mnt has active mounts")
     installer.succeed(
         "umount /mnt",
