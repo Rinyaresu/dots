@@ -11,8 +11,7 @@ def reject(script, message):
 
 
 installer.start()
-installer.wait_for_device(linux)
-installer.wait_for_device(windows)
+installer.wait_until_succeeds(f'test -b {linux} && test -b {windows}')
 
 with subtest("seed two disposable block devices"):
     installer.succeed(
@@ -47,7 +46,7 @@ with subtest("reject missing or wrong target and protect Windows even if selecte
     installer.succeed(
         "umount /mnt",
         "sha256sum -c /tmp/linux.before /tmp/windows.before",
-        f"findmnt -rn -o SOURCE | grep -vFx $(realpath {windows}-part1)",
+        f"! lsblk -nr -o MOUNTPOINTS {windows} | grep -q '[^[:space:]]'",
     )
 
 with subtest("format and mount only Linux using the evaluated layout"):
