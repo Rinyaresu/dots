@@ -319,23 +319,47 @@ pkgs.testers.runNixOSTest {
 
     with subtest("scheduled Gravity publishes new domains and rejects bad downloads"):
         url = "http://192.168.1.50:8888/hosts"
+        gambling_url = "http://192.168.1.50:8888/gambling"
+        managed_sql = "${ordis.systemd.services.pihole-ftl-setup.environment.PIHOLE_MANAGED_LISTS_SQL}"
         server.succeed(
             "install -d /run/systemd/system/pihole-ftl-setup.service.d; "
             "cp $(systemctl show -P ExecStart pihole-ftl-setup | cut -d' ' -f2 | cut -d= -f2) /run/managed-setup; "
             "sed -i -E 's@file:///nix/store/[a-z0-9]+-hosts@" + url + "@g' /run/managed-setup; "
-            "printf '%s\\n' '[Service]' 'ExecStart=' 'ExecStart=/run/managed-setup' 'Environment=PIHOLE_MANAGED_HOSTS_URL=" + url + "' "
+            f"sed -E 's@https://cdn[.]jsdelivr[.]net/gh/hagezi/dns-blocklists.latest/adblock/pro[.]txt@{url}@g;"
+            f"s@https://cdn[.]jsdelivr[.]net/gh/hagezi/dns-blocklists.latest/adblock/gambling[.]medium[.]txt@{gambling_url}@g' {managed_sql} >/run/managed-lists.sql; "
+            "printf '%s\\n' '[Service]' 'ExecStart=' 'ExecStart=/run/managed-setup' "
+            f"'Environment=PIHOLE_MANAGED_PRO_URL={url}' 'Environment=PIHOLE_MANAGED_GAMBLING_URL={gambling_url}' "
+            "'Environment=PIHOLE_MANAGED_LISTS_SQL=/run/managed-lists.sql' "
             "> /run/systemd/system/pihole-ftl-setup.service.d/90-fixture.conf; systemctl daemon-reload; "
-            "sqlite3 /var/lib/pihole/gravity.db \"UPDATE adlist SET comment='StevenBlack unified hosts snapshot (35c74714)'\""
+            "sqlite3 /var/lib/pihole/gravity.db \"UPDATE adlist SET comment='StevenBlack unified hosts snapshot (35c74714)'; "
+            "INSERT INTO [group](id,name) VALUES(42,'extra'); "
+            "INSERT INTO adlist_by_group SELECT id,42 FROM adlist; "
+            "INSERT INTO domainlist(type,domain) VALUES(0,'allowed.fixture.example.com'); "
+            "INSERT INTO domainlist_by_group SELECT id,42 FROM domainlist WHERE type=0;\""
         )
-        upstream.succeed("install -d /run/hosts-fixture; awk 'BEGIN{for(i=1;i<=50001;i++)printf \"0.0.0.0 fixture%d.example.com\\n\",i; print \"0.0.0.0 ads.fixture.example.com\"}' >/run/hosts-fixture/hosts; systemctl start hosts-fixture")
+        upstream.succeed("install -d /run/hosts-fixture; awk 'BEGIN{for(i=1;i<=50001;i++)printf \"||fixture%d.example.com^\\n\",i; print \"||ads.fixture.example.com^\"}' >/run/hosts-fixture/hosts; systemctl start hosts-fixture")
         server.wait_until_succeeds("curl -fsS --max-time 2 http://192.168.1.50:8888/hosts -o /dev/null")
+        server.succeed("sha256sum /var/lib/pihole/gravity.db /etc/pihole/listsCache/*.domains >/run/before-migration")
+        server.fail("systemctl start pihole-ftl-setup")
+        server.succeed("sha256sum -c /run/before-migration")
+        upstream.succeed("awk 'BEGIN{for(i=1;i<=50001;i++)printf \"||wager%d.example.com^\\n\",i}' >/run/hosts-fixture/gambling")
         server.succeed(
             "printf '%s\\n' '[Timer]' 'OnActiveSec=1' 'AccuracySec=1s' >/run/systemd/system/pihole-ftl-setup.timer; "
             "systemctl daemon-reload; systemctl start pihole-ftl-setup.timer"
         )
         dns("fixture50001.example.com", expected="0.0.0.0")
-        server.succeed(f"sqlite3 /var/lib/pihole/gravity.db 'SELECT address FROM adlist' | grep -Fx {url}")
+        dns("wager50001.example.com", expected="0.0.0.0")
+        dns("wager50001.example.com", "AAAA", tcp=True, expected="::")
+        sql = "sqlite3 /var/lib/pihole/gravity.db"
+        assert server.succeed(f"{sql} 'SELECT id,address FROM adlist ORDER BY id'").splitlines() == [f"1|{url}", f"2|{gambling_url}"]
+        assert server.succeed(f"{sql} 'SELECT * FROM adlist_by_group ORDER BY adlist_id,group_id'").splitlines() == ["1|0", "1|42", "2|0", "2|42"]
+        server.succeed(f"{sql} 'SELECT count(*) FROM domainlist_by_group WHERE group_id=42' | grep -Fx 1")
         server.succeed("sha256sum /var/lib/pihole/gravity.db /etc/pihole/listsCache/*.domains >/run/last-working")
+        upstream.succeed("mv /run/hosts-fixture/gambling /run/gambling-working; printf '<html>error</html>\\n' >/run/hosts-fixture/gambling")
+        server.fail("systemctl start pihole-ftl-setup")
+        server.succeed("sha256sum -c /run/last-working")
+        dns("wager50001.example.com", expected="0.0.0.0")
+        upstream.succeed("mv /run/gambling-working /run/hosts-fixture/gambling")
         for break_source in [
             "printf '<html>bad response</html>\\n' >/run/hosts-fixture/hosts",
             "rm /run/hosts-fixture/hosts",
@@ -345,7 +369,7 @@ pkgs.testers.runNixOSTest {
             server.fail("systemctl start pihole-ftl-setup")
             server.succeed("sha256sum -c /run/last-working")
             dns("fixture50001.example.com", expected="0.0.0.0")
-        upstream.succeed("awk 'BEGIN{for(i=1;i<=50002;i++)printf \"0.0.0.0 fixture%d.example.com\\n\",i; print \"0.0.0.0 ads.fixture.example.com\"}' >/run/hosts-fixture/hosts; systemctl start hosts-fixture")
+        upstream.succeed("awk 'BEGIN{for(i=1;i<=50002;i++)printf \"||fixture%d.example.com^\\n\",i; print \"||ads.fixture.example.com^\"}' >/run/hosts-fixture/hosts; systemctl start hosts-fixture")
         server.wait_until_succeeds("curl -fsS --max-time 2 http://192.168.1.50:8888/hosts -o /dev/null")
         server.succeed("systemctl start pihole-ftl-setup")
         dns("fixture50002.example.com", expected="0.0.0.0")
@@ -356,7 +380,7 @@ pkgs.testers.runNixOSTest {
         db = "/var/lib/pihole/gravity.db"
         backup = "/var/lib/pihole/gravity_old.db"
         upstream.succeed(
-            "printf '0.0.0.0 interrupted.example.com\\n' >>/run/hosts-fixture/hosts"
+            "printf '||interrupted.example.com^\\n' >>/run/hosts-fixture/hosts"
         )
         for after in [False, True]:
             # Only the VM uses an instrumented copy; inject SIGKILL at the live rename.
@@ -369,15 +393,16 @@ pkgs.testers.runNixOSTest {
             lines.insert(index + int(after), '  kill -KILL "$$"\n')
             server.succeed("printf %s " + shlex.quote("".join(lines)) + " >/run/gravity-interrupt; chmod 700 /run/gravity-interrupt")
             server.succeed(
-                "rc=0; PIHOLE_MANAGED_HOSTS_URL=http://192.168.1.50:8888/hosts "
+                f"rc=0; PIHOLE_MANAGED_PRO_URL={url} PIHOLE_MANAGED_GAMBLING_URL={gambling_url} "
+                "PIHOLE_MANAGED_LISTS_SQL=/run/managed-lists.sql "
                 "/run/gravity-interrupt -g || rc=$?; test \"$rc\" = 137"
             )
             for path in [db, backup]:
                 server.succeed(f"sqlite3 {path} 'PRAGMA quick_check' | grep -Fx ok")
-                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='fixture50002.example.com'\" | grep -Fx 1")
+                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='||fixture50002.example.com^'\" | grep -Fx 1")
             db_count = 1 if after else 0
             for path, count in [(db, db_count), (backup, 0)]:
-                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='interrupted.example.com'\" | grep -Fx {count}")
+                server.succeed(f"sqlite3 {path} \"SELECT count(*) FROM gravity WHERE domain='||interrupted.example.com^'\" | grep -Fx {count}")
             dns("fixture50002.example.com", expected="0.0.0.0")
         server.succeed("systemctl restart pihole-ftl")
         dns("interrupted.example.com", expected="0.0.0.0")

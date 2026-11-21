@@ -24,7 +24,18 @@ in
         ];
         text = builtins.readFile ./pihole-publish-tls.sh;
       };
-      source = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts";
+      baseURL = "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock";
+      pro = "${baseURL}/pro.txt";
+      gambling = "${baseURL}/gambling.medium.txt";
+      managedLists = {
+        PIHOLE_MANAGED_PRO_URL = pro;
+        PIHOLE_MANAGED_GAMBLING_URL = gambling;
+        PIHOLE_MANAGED_LISTS_SQL = pkgs.writeText "ordis-gravity-lists.sql" (
+          builtins.replaceStrings [ "@pro@" "@gambling@" ] [ pro gambling ] (
+            builtins.readFile ./pihole-lists.sql
+          )
+        );
+      };
       webPorts = [
         "127.0.0.1:8080"
         "${lan}:443os"
@@ -71,8 +82,12 @@ in
         };
         lists = [
           {
-            url = source;
-            description = "StevenBlack Unified Hosts";
+            url = pro;
+            description = "HaGeZi Multi PRO";
+          }
+          {
+            url = gambling;
+            description = "HaGeZi Gambling Medium";
           }
         ];
         macvendorURL = "file:///dev/null";
@@ -132,15 +147,14 @@ in
         pihole-ftl = {
           wants = lib.mkForce [ "dnscrypt-proxy.service" ];
           after = [ "dnscrypt-proxy.service" ];
-          environment = {
-            PIHOLE_MANAGED_HOSTS_URL = source;
+          environment = managedLists // {
             PIHOLE_TLS_NAME = name;
             PIHOLE_TLS_PEM = ftl.settings.webserver.tls.cert;
             PIHOLE_TLS_CA = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
           };
         };
         pihole-ftl-setup = {
-          environment.PIHOLE_MANAGED_HOSTS_URL = source;
+          environment = managedLists;
           serviceConfig.TimeoutStartSec = "5min";
         };
       };
