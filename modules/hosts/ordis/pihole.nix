@@ -43,7 +43,13 @@ in
       ftl = config.services.pihole-ftl;
     in
     {
-      imports = [ pihole ];
+      imports = [
+        pihole
+        (import ./_pihole-link-local.nix {
+          interface = "eno1";
+          address = "fe80::196:53";
+        })
+      ];
 
       assertions = [
         {
@@ -54,7 +60,7 @@ in
             && !ftl.openFirewallDNS
             && !ftl.openFirewallWebserver
             && !ftl.openFirewallDHCP;
-          message = "Pi-hole must use only its explicit IPv4 ingress rules.";
+          message = "Pi-hole must use only its explicit LAN ingress rules (IPv4 DNS/HTTPS and link-local IPv6 DNS).";
         }
       ];
 
