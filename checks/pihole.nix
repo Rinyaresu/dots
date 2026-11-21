@@ -395,7 +395,7 @@ pkgs.testers.runNixOSTest {
             server.succeed(
                 f"rc=0; PIHOLE_MANAGED_PRO_URL={url} PIHOLE_MANAGED_GAMBLING_URL={gambling_url} "
                 "PIHOLE_MANAGED_LISTS_SQL=/run/managed-lists.sql "
-                "/run/gravity-interrupt -g || rc=$?; test \"$rc\" = 137"
+                "bash /run/gravity-interrupt -g || rc=$?; test \"$rc\" = 137"
             )
             for path in [db, backup]:
                 server.succeed(f"sqlite3 {path} 'PRAGMA quick_check' | grep -Fx ok")
