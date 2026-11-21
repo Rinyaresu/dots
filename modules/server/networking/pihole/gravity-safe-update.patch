@@ -1,6 +1,8 @@
+diff --git a/gravity.sh b/gravity.sh
+index b17d7c7..394671b 100644
 --- a/gravity.sh
 +++ b/gravity.sh
-@@ -132,33 +132,34 @@
+@@ -141,34 +141,34 @@ gravity_swap_databases() {
    oldAvail=false
    if [ "${availableBlocks}" -gt "$((gravityBlocks * 2))" ] && [ -f "${gravityDBfile}" ]; then
      oldAvail=true
@@ -16,14 +18,15 @@
 +    echo 'Insufficient space to preserve the current Gravity database' >&2
 +    return 1
    fi
-
+ 
 -  # Drop the gravity and antigravity tables + subsequent VACUUM the current
 -  # database for compaction
 -  output=$({ printf ".timeout 30000\\nDROP TABLE IF EXISTS gravity;\\nDROP TABLE IF EXISTS antigravity;\\nVACUUM;\\n" | pihole-FTL sqlite3 -ni "${gravityDBfile}"; } 2>&1)
 -  status="$?"
 -
 -  if [[ "${status}" -ne 0 ]]; then
--    echo -e "\\n  ${CROSS} Unable to clean current database for backup\\n  ${output}"
+-    echo -e "\\n  ${CROSS} Unable to clean current database for backup\\n"
+-    echo -e "  ${CROSS} ${output}\\n"
 -  else
 -    # Check if the backup directory exists
 -    if [ ! -d "${gravityBCKdir}" ]; then
@@ -57,12 +60,12 @@
 -  mv "${gravityTEMPfile}" "${gravityDBfile}"
 +  done
    echo -e "${OVER}  ${TICK} ${str}"
-
-   if $oldAvail; then
-@@ -485,11 +486,17 @@
+ 
+   if ${oldAvail}; then
+@@ -504,11 +504,17 @@ gravity_DownloadBlocklists() {
      echo -e "${OVER}  ${TICK} ${str}"
    fi
-
+ 
 -  # Retrieve source URLs from gravity database
 -  # We source only enabled adlists, SQLite3 stores boolean values as 0 (false) or 1 (true)
 -  mapfile -t sources <<<"$(pihole-FTL sqlite3 -ni "${gravityDBfile}" "SELECT address FROM vw_adlist;" 2>/dev/null)"
@@ -79,19 +82,19 @@
 +  mapfile -t sources <<<"$addresses"
 +  mapfile -t sourceIDs <<<"$ids"
 +  mapfile -t sourceTypes <<<"$types"
-
+ 
    # Parse source domains from $sources
    mapfile -t sourceDomains <<<"$(
-@@ -579,7 +586,7 @@
+@@ -603,7 +609,7 @@ gravity_DownloadBlocklists() {
      if [[ "${check_url}" =~ ${regex} ]]; then
        echo -e "  ${CROSS} Invalid Target"
      else
--      timeit gravity_DownloadBlocklistFromUrl "${url}" "${sourceIDs[$i]}" "${saveLocation}" "${compression}" "${adlist_type}" "${domain}"
+-      timeit gravity_DownloadBlocklistFromUrl "${url}" "${sourceIDs[${i}]}" "${saveLocation}" "${compression}" "${adlist_type}" "${domain}"
 +      timeit gravity_DownloadBlocklistFromUrl "${url}" "${sourceIDs[$i]}" "${saveLocation}" "${compression}" "${adlist_type}" "${domain}" || return 1
      fi
      echo ""
    done
-@@ -617,7 +624,11 @@
+@@ -641,7 +647,11 @@ gravity_DownloadBlocklistFromUrl() {
    local listCurlBuffer str curlVersion curlOutput httpCode curlErrorMsg="" curlExitCode="" curlOutputFormat=""
    local success="" ip customUpstreamResolver="" file_path ip_addr port blocked=false download=true
    # modifiedOptions is an array to store all the options used to check if the adlist has been changed upstream
@@ -101,22 +104,22 @@
 +    managed=true
 +    modifiedOptions=(--proto '=https,http' --proto-redir '=https' --max-time 90 --max-filesize 16777216)
 +  fi
-
+ 
    # Create temp file to store content on disk instead of RAM
-   # We don't use '--suffix' here because not all implementations of mktemp support it, e.g. on Alpine
-@@ -627,7 +638,7 @@
-
+   # Create a temporary file with random filename with '.phgpb' suffix.
+@@ -650,7 +660,7 @@ gravity_DownloadBlocklistFromUrl() {
+ 
    # For all remote files, we try to determine if the file has changed to skip
    # downloading them whenever possible.
--  if [[ $url != "file"* ]]; then
+-  if [[ ${url} != "file"* ]]; then
 +  if [[ $url != "file"* ]] && [[ "$managed" != true ]]; then
      # Use the HTTP ETag header to determine if the file has changed if supported
      # by curl. Using ETags is supported by raw.githubusercontent.com URLs.
      if [[ "${etag_support}" == true ]]; then
-@@ -838,6 +849,19 @@
-     ;;
-   esac
-
+@@ -863,6 +873,19 @@ gravity_DownloadBlocklistFromUrl() {
+     esac
+   fi
+ 
 +  if [[ "$managed" == true ]]; then
 +    if [[ "${curlExitCode}" != 0 || "${httpCode}" != 200 ]] || ! awk '
 +      /^!/ || /^\[Adblock Plus\]$/ || !NF { next }
@@ -133,7 +136,7 @@
    local done="false"
    # Determine if the blocklist was downloaded and saved correctly
    if [[ "${success}" == true ]]; then
-@@ -850,17 +874,24 @@
+@@ -875,17 +898,24 @@ gravity_DownloadBlocklistFromUrl() {
      # Check if $listCurlBuffer is a non-zero length file
      elif [[ -s "${listCurlBuffer}" ]]; then
        # Move the downloaded list to the final location
@@ -141,7 +144,7 @@
 +      if [[ "$managed" == true ]]; then
 +        managedCacheSrc+=("${listCurlBuffer}")
 +        managedCacheDst+=("${saveLocation}")
-+        pihole-FTL "${gravity_type}" parseList "${listCurlBuffer}" "${gravityTEMPfile}" "${adlistID}" || return 1
++        pihole-FTL "${gravity_type}" parseList "${listCurlBuffer}" "${gravityTEMPfile}" "${adlistID}" "${url}" || return 1
 +        [[ "$(pihole-FTL sqlite3 -readonly "${gravityTEMPfile}" "SELECT count(*) >= 50000 FROM gravity WHERE adlist_id=${adlistID};")" == 1 ]] || return 1
 +      else
 +        mv "${listCurlBuffer}" "${saveLocation}" || return 1
@@ -157,18 +160,18 @@
            fix_owner_permissions "${saveLocation}.etag"
        fi
        # Add domains to database table file
--      pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}"
-+      [[ "$managed" == true ]] || pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}" || return 1
+-      pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}" "${url}"
++      [[ "$managed" == true ]] || pihole-FTL "${gravity_type}" parseList "${saveLocation}" "${gravityTEMPfile}" "${adlistID}" "${url}" || return 1
        done="true"
      else
        # Fall back to previously cached list if $listCurlBuffer is empty
-@@ -1148,9 +1179,12 @@
-   exit 1
- fi
-
+@@ -1203,9 +1233,12 @@ done
+ # Check if DNS is available, no need to do any database manipulation if we're not able to download adlists
+ timeit gravity_CheckDNSResolutionAvailable
+ 
 -# Remove OLD (backup) gravity file, if it exists
 -if [[ -f "${gravityOLDfile}" ]]; then
--  rm "${gravityOLDfile}"
+-  rm -f "${gravityOLDfile}"
 +# Serialize the web action and the scheduled refresh on the same database.
 +exec 9>"${gravityDBfile}.lock" || exit 1
 +: 'gravity-flock'
@@ -176,24 +179,29 @@
 +  echo 'Unexpected gravity journal mode; refusing to replace the database' >&2
 +  exit 1
  fi
-
+ 
  # Trap Ctrl-C
-@@ -1189,6 +1223,7 @@
-
- # Gravity downloads blocklists next
- if ! gravity_DownloadBlocklists; then
-+  rm -f "${gravityTEMPfile}" "${managedCacheSrc[@]}"
-   echo -e "   ${CROSS} Unable to create gravity database. Please try again later. If the problem persists, please contact support."
-   exit 1
+@@ -1243,7 +1276,11 @@ if [[ "${forceDelete:-}" == true ]]; then
  fi
-@@ -1200,8 +1235,8 @@
+ 
+ # Gravity downloads blocklists next
+-gravity_DownloadBlocklists
++if ! gravity_DownloadBlocklists; then
++  rm -f "${gravityTEMPfile}" "${managedCacheSrc[@]}"
++  echo -e "   ${CROSS} Unable to create gravity database. Please try again later. If the problem persists, please contact support."
++  exit 1
++fi
+ 
+ # Update gravity timestamp
+ update_gravity_timestamp
+@@ -1252,8 +1289,8 @@ update_gravity_timestamp
  fix_owner_permissions "${gravityTEMPfile}"
-
+ 
  # Build the tree
 -timeit gravity_build_tree gravity
 -timeit gravity_build_tree antigravity
 +timeit gravity_build_tree gravity || exit 1
 +timeit gravity_build_tree antigravity || exit 1
-
+ 
  # Compute numbers to be displayed (do this after building the tree to get the
  # numbers quickly from the tree instead of having to scan the whole database)

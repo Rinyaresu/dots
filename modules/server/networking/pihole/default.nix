@@ -8,6 +8,34 @@
     }:
     let
       cfg = config.services.pihole-ftl;
+      pin =
+        package: repo: version: hash:
+        package.overrideAttrs {
+          inherit version;
+          src = pkgs.fetchFromGitHub {
+            owner = "pi-hole";
+            inherit repo hash;
+            tag = "v${version}";
+          };
+        };
+      ftl =
+        (pin pkgs.pihole-ftl "FTL" "6.9" "sha256-m4nNczkxdsWtOPxDlRtXWVTChBZaDkvO6vjkCKxCGqM=")
+        .overrideAttrs
+          (old: {
+            # 6.9 intentionally refuses symlinks when creating the CLI credential.
+            postPatch = old.postPatch + ''
+              substituteInPlace src/config/password.c \
+                --replace-fail '"/etc/pihole/cli_pw"' '"/run/pihole-cli/cli_pw"'
+            '';
+          });
+      core = (pkgs.pihole.override { pihole-ftl = ftl; }).overrideAttrs (old: {
+        version = "6.6";
+        src = pin old.src "pi-hole" "6.6" "sha256-qc/RoC1X/ELvZk6sEEY8Hncl2RstzpniZb10Uyzm9Gw=";
+      });
+      web = pin (pkgs.pihole-web.override {
+        pihole-ftl = ftl;
+        pihole = cfg.piholePackage;
+      }) "web" "6.6.1" "sha256-z1SAQr3ZMiN2A3p0iYYa9AgNqydIZhxCqRK66nw2xYA=";
       nativeSetup =
         import (pkgs.path + "/nixos/modules/services/networking/pihole-ftl-setup-script.nix")
           {
@@ -60,16 +88,27 @@
 
       services.pihole-ftl = {
         enable = true;
+        package = ftl;
         # Upstream api.sh puts its CLI token and session SID in curl argv.
         # Pass these through anonymous pipes instead, without changing the API.
-        piholePackage = pkgs.pihole.overrideAttrs (old: {
+        piholePackage = core.overrideAttrs (old: {
           # The outer installPhase copies $src, not the unpacked tree.
           # Patch the installed tree before the original resholve preFixup.
           preFixup = ''
+            substituteInPlace "$out/share/pihole/automated install/basic-install.sh" \
+              --replace-fail 'exec curl -sSL https://install.pi-hole.net | "''${SUDO_COMMAND}" bash "$@"' 'return 1' \
+              --replace-fail 'exec "''${SUDO_COMMAND}" bash "$0" "$@"' 'return 1'
             (cd "$out"; ${pkgs.patch}/bin/patch -p1 < ${./api-no-argv-secrets.patch})
             ${pkgs.patch}/bin/patch -d "$out/share/pihole/advanced/Scripts" -p1 < ${./gravity-safe-update.patch}
           ''
-          + old.preFixup;
+          +
+            builtins.replaceStrings
+              [ "RESHOLVE_EXECER='" "RESHOLVE_INPUTS=" ]
+              [
+                "RESHOLVE_EXECER='cannot:${lib.getExe' pkgs.util-linux "setpriv"} cannot:${lib.getExe pkgs.logrotate} "
+                "RESHOLVE_INPUTS=${pkgs.logrotate}/bin:"
+              ]
+              old.preFixup;
           # FD-only flock has no command operand; resholve cannot infer that.
           postFixup = (old.postFixup or "") + ''
             substituteInPlace "$out/share/pihole/advanced/Scripts/gravity.sh" \
@@ -105,6 +144,7 @@
       };
       services.pihole-web = {
         enable = true;
+        package = web;
         ports = [ "127.0.0.1:8080" ];
       };
 
