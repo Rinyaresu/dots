@@ -6,7 +6,7 @@ windows_esp = inventory["windowsEsp"]
 
 
 def reject(script, message):
-    status, output = installer.execute(f"printf 'ERASE-LINUX\\n' | {script}")
+    status, output = installer.execute(f"printf 'ERASE-LINUX\\n' | {script} 2>&1")
     assert status != 0 and message in output, output
 
 
