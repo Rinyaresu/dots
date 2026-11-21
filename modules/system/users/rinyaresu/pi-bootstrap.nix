@@ -16,9 +16,11 @@
             pkgs.nodejs_24
             pkgs.coreutils
             pkgs.diffutils
+            pkgs.util-linux
           ]
         }"
         + "\n"
+        + "export PI_DEPENDENCY_INTEGRITY=${./_pi-extension-integrity.mjs}\n"
         + builtins.readFile ./_pi-extension-deps.sh
       );
       restore = pkgs.writeShellScript "pi-config-restore" ''
@@ -119,6 +121,16 @@
           message = "Pi bootstrap requires the native SSH agent and the pinned GitHub host key.";
         }
       ];
+      # Git updates (including Home's fast-forward flow) replace these files.
+      # Use a path trigger rather than installing hooks in the private checkout.
+      systemd.user.paths.pi-config-restore = {
+        Unit.Description = "Reconcile Pi dependencies when the Agent manifests change";
+        Path.PathChanged = [
+          "%h/.pi/agent/extensions/herdr-codemode/package-lock.json"
+          "%h/.pi/agent/extensions/herdr-codemode/package.json"
+        ];
+        Install.WantedBy = [ "default.target" ];
+      };
       systemd.user.services.pi-config-restore = {
         Unit = {
           Description = "Restore Pi configuration and local extension dependencies";
@@ -127,7 +139,7 @@
           StartLimitIntervalSec = 0;
         };
         Service = {
-          Type = "simple";
+          Type = "exec";
           ExecStart = "${restore}";
           Environment = [
             "SSH_AUTH_SOCK=%t/ssh-agent"
@@ -136,7 +148,7 @@
           ];
           Restart = "on-failure";
           RestartSec = 30;
-          RemainAfterExit = true;
+          RestartPreventExitStatus = [ 78 ];
           TimeoutStopSec = 15;
           UMask = "0077";
         };

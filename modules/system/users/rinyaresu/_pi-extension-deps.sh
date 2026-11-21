@@ -8,29 +8,33 @@ fail() {
   exit 1
 }
 
-# Only inspect existing dependencies; npm ci would delete that tree first.
-resolves() (
-  cd -- "$1"
-  node --input-type=module <<'JS'
-import { existsSync, readFileSync } from 'node:fs';
-const { dependencies } = JSON.parse(readFileSync('package.json', 'utf8'));
-for (const name of Object.keys(dependencies)) {
-  const url = import.meta.resolve(name);
-  if (!existsSync(new URL(url))) throw new Error(`Missing dependency: ${name}`);
+conflict() {
+  echo 'Pi: herdr-codemode: node_modules sem registro do bootstrap, alterado ou incompleto; destino preservado. Mova-o para um backup para permitir a instalação.' >&2
+  exit 78
 }
-JS
-)
 
-if [[ -e "$extension/node_modules" || -L "$extension/node_modules" ]]; then
-  resolves "$extension" || fail 'dependências existentes inutilizáveis; preserve ou mova node_modules e reinicie pi-config-restore.service.'
-  exit 0
+# Serialize cooperating provisioners without writing to the Git checkout.
+exec 9< "$extension"
+flock -n 9 || fail 'outra instalação em andamento; tente novamente.'
+integrity() { node "$PI_DEPENDENCY_INTEGRITY" "$@"; }
+
+tree="$extension/node_modules"
+receipt=.dots-dependencies.json
+installed=
+if [[ -e "$tree" || -L "$tree" ]]; then
+  [[ -f "$tree/$receipt" ]] || conflict
+  installed=$(integrity inspect "$extension") || conflict
 fi
+wanted=$(integrity inputs "$extension") || fail 'manifesto ou lockfile ausente; checkout preservado.'
+[[ "$installed" != "$wanted" ]] || exit 0
 
-[[ -f "$extension/package.json" && -f "$extension/package-lock.json" ]] || fail 'manifesto ou lockfile ausente; checkout preservado.'
-# Stage on the same filesystem, so failures and concurrent writers cannot
-# leave a partial node_modules at the final path. Never run npm in the checkout.
-stage=$(mktemp -d -- "$extension/.pi-deps.XXXXXX")
-trap 'rm -rf -- "$stage"' EXIT
+state="${XDG_STATE_HOME:-$HOME/.local/state}/pi-extension-deps"
+mkdir -p -- "$state"
+[[ "$(stat -c %d -- "$state/")" == "$(stat -c %d -- "$extension/")" ]] ||
+  fail 'diretório de estado e extensão precisam estar no mesmo filesystem para troca atômica.'
+stage=$(mktemp -d -- "$state/transaction.XXXXXX")
+keep=0
+trap 'if (( ! keep )); then rm -rf -- "$stage"; fi' EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 cp -- "$extension/package.json" "$extension/package-lock.json" "$stage/"
@@ -38,13 +42,40 @@ cp -- "$extension/package.json" "$extension/package-lock.json" "$stage/"
   cd -- "$stage"
   npm ci --omit=dev --ignore-scripts --no-audit --no-fund --no-progress \
     --userconfig="$stage/user.npmrc" --globalconfig="$stage/global.npmrc"
-) || fail 'npm ci falhou; nenhum node_modules foi publicado. Confira o journal e tente novamente.'
-resolves "$stage" || fail 'dependências instaladas não resolvem; nenhum node_modules foi publicado.'
+) || fail 'npm ci falhou; nenhum node_modules foi publicado.'
+record=$(integrity record "$stage") || fail 'dependências instaladas não correspondem ao lockfile.'
+(
+  cd -- "$stage"
+  node --input-type=module <<'JS'
+import { existsSync, readFileSync } from 'node:fs';
+const { dependencies } = JSON.parse(readFileSync('package.json', 'utf8'));
+for (const name of Object.keys(dependencies)) {
+  if (!existsSync(new URL(import.meta.resolve(name)))) throw new Error(`Missing dependency: ${name}`);
+}
+JS
+) || fail 'dependências instaladas não resolvem; nenhum node_modules foi publicado.'
+printf '%s\n' "$record" > "$stage/node_modules/$receipt"
+
+if [[ -n "$installed" ]]; then
+  # Recheck after npm, so unrelated writers cannot silently lose edits.
+  current=$(integrity inspect "$extension") || conflict
+  [[ "$current" == "$installed" ]] || conflict
+fi
 for file in package.json package-lock.json; do
   cmp -s -- "$extension/$file" "$stage/$file" || fail 'manifestos mudaram durante a instalação; tente novamente.'
 done
-if ! mv -T --no-copy --no-clobber -- "$stage/node_modules" "$extension/node_modules"; then
-  [[ -e "$extension/node_modules" || -L "$extension/node_modules" ]] || fail 'não foi possível publicar node_modules.'
+if [[ -n "$installed" ]]; then
+  # Keep the exchanged tree even if a non-cooperating writer changed it
+  # between inspection and exchange. Do not garbage collect user data.
+  keep=1
+  if ! mv -T --exchange --no-copy -- "$stage/node_modules" "$tree"; then
+    keep=0
+    fail 'não foi possível trocar node_modules atomicamente.'
+  fi
+  printf '%s\n' 'Pi: dependências anteriores preservadas em:' "$stage/node_modules"
+else
+  mv -T --no-copy --no-clobber -- "$stage/node_modules" "$tree" ||
+    fail 'não foi possível publicar node_modules.'
+  [[ ! -e "$stage/node_modules" ]] || conflict
 fi
-resolves "$extension" || fail 'dependências no destino inutilizáveis; destino preservado.'
 echo 'Pi: dependências locais de herdr-codemode prontas.'

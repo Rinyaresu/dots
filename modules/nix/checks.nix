@@ -137,7 +137,7 @@ in
       "$TMPDIR/restore"
       [[ -L "$HOME/.pi" && "$(readlink "$HOME/.pi")" == preserved-link-target ]]
       [[ ! -e "$HOME/preserved-link-target" ]]
-      bash ${../../checks/bootstrap-dependencies.sh} "$TMPDIR/restore" ${pkgs.nodejs_24}/bin \
+      PATH=${pkgs.util-linux}/bin:$PATH bash ${../../checks/bootstrap-dependencies.sh} "$TMPDIR/restore" ${pkgs.nodejs_24}/bin \
         ${pi}/bin/pi ${../../checks/pi-local-extension-check.mjs} \
         ${../../checks/bootstrap-dependency-fixture.sh}
       touch "$out"
