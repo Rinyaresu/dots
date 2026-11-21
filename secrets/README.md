@@ -2,14 +2,16 @@
 
 ## Provisionar SOPS e SSH do desktop
 
-Antes de instalar, confirme em outro aparelho que consegue recuperar a identidade age sem depender da chave SSH que ela protege. Preserve uma revisão conhecida e seu `secrets/ssh.yaml`. Só esse ciphertext revisado pode entrar em Git e no store. Não rastreie identidades, backups, senhas, chaves, tokens ou estado de serviços. Metadados dos destinatários ficam legíveis e cópias antigas do ciphertext podem sobreviver.
+Antes de instalar, confirme em outro aparelho que consegue recuperar a identidade age sem depender da chave SSH que ela protege. Preserve uma revisão conhecida com o [ciphertext SSH](../modules/system/users/rinyaresu/ssh/secrets.yaml). Só esse ciphertext revisado pode entrar em Git e no store. Não rastreie identidades, backups, senhas, chaves, tokens ou estado de serviços. Metadados dos destinatários ficam legíveis e cópias antigas do ciphertext podem sobreviver.
 
 No [instalador autorizado](../README.md#instalar-ou-recuperar-o-desktop), com os volumes já montados, provisione o arquivo regular `/mnt/var/lib/sops-nix/key.txt` como root:root 0600, em diretório root:root 0700. No sistema iniciado, o caminho não tem o prefixo `/mnt`. Confira origem e metadados sem imprimir conteúdo. O preflight recusa arquivo ausente, vazio, symlink ou metadados inseguros. Não gere identidade substituta: uma nova não decifra dados existentes, e a chave do host não é fallback.
 
-Para editar o ciphertext existente, use a identidade autorizada **fora** do checkout. SOPS usa os destinatários do documento:
+A funcionalidade SSH pessoal declara o segredo em [`credential.nix`](../modules/system/users/rinyaresu/ssh/credential.nix). Consumidores autorizados no mesmo host importam esse módulo NixOS e usam `config.sops.secrets.rinyaresu-ssh-key.path`, sem duplicar o ciphertext. A regra em [`.sops.yaml`](../.sops.yaml) cobre só esse caminho e registra o destinatário existente do desktop. Ela não altera os destinatários embutidos no documento.
+
+Para editar o ciphertext existente a partir da raiz do checkout, use a identidade autorizada **fora** dele:
 
 ```sh
-SOPS_AGE_KEY_FILE=/CAMINHO_PRIVADO/key.txt sops secrets/ssh.yaml
+SOPS_AGE_KEY_FILE=/CAMINHO_PRIVADO/key.txt sops modules/system/users/rinyaresu/ssh/secrets.yaml
 ```
 
 Use editor sem backups ou swap em plaintext. Antes de comitar ou construir, confirme que o documento continua cifrado e que não sobraram temporários. Preserve a passphrase da chave SSH. Para trocar destinatários, mantenha uma identidade que ainda decifra ou uma cópia recuperável do material original; valide a recuperação antes de retirar a antiga. Em caso de exposição, revogue as autorizações da chave nos serviços externos e substitua-a; recifrar não revoga cópias antigas. Uma falha de SOPS também não remove uma chave já carregada do agente: remova-a explicitamente na sessão autorizada.

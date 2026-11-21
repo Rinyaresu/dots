@@ -12,4 +12,4 @@ O flake declara NixOS; não é configuração aplicada ao CachyOS. Para operaç�
 ## Verificar e operar
 
 - Use os [gates nativos do README](README.md#verificar-sem-ativar). Para evidência, registre o SHA de uma fonte Git limpa; não use `path:` para contornar o recorte. Rode VMs pertinentes em KVM somente quando o contrato de runtime ou a derivação for afetado. Build não comprova hardware ou serviços reais.
-- Mantenha chaves privadas, identidades age, tokens, estado pessoal e recuperação fora de Git, store, logs e artefatos. A exceção é o ciphertext revisado de `secrets/ssh.yaml`. Para provisionar, rotacionar ou recuperar, leia [o guia de credenciais](secrets/README.md).
+- Mantenha chaves privadas, identidades age, tokens, estado pessoal e recuperação fora de Git, store, logs e artefatos. A exceção é o ciphertext revisado de [`modules/system/users/rinyaresu/ssh/secrets.yaml`](modules/system/users/rinyaresu/ssh/secrets.yaml). Para provisionar, rotacionar ou recuperar, leia [o guia de credenciais](secrets/README.md).
