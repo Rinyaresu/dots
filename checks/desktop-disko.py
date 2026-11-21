@@ -11,7 +11,7 @@ def reject(script, message):
 
 
 installer.start()
-installer.wait_until_succeeds(f'test -b {linux} && test -b {windows}')
+installer.wait_until_succeeds(f"test -b {linux} && test -b {windows}")
 
 with subtest("seed two disposable block devices"):
     installer.succeed(
@@ -46,7 +46,7 @@ with subtest("reject missing or wrong target and protect Windows even if selecte
     installer.succeed(
         "umount /mnt",
         "sha256sum -c /tmp/linux.before /tmp/windows.before",
-        f"! lsblk -nr -o MOUNTPOINTS {windows} | grep -q '[^[:space:]]'",
+        f"test -z \"$(lsblk -nro MOUNTPOINTS {windows} | tr -d '[:space:]')\"",
     )
 
 with subtest("format and mount only Linux using the evaluated layout"):
@@ -92,5 +92,5 @@ with subtest("no repeated wipe; repeatable mount and intact Windows"):
         "sha256sum -c /tmp/windows.before",
         f"mtype -i /dev/disk/by-partuuid/{windows_esp} ::/EFI/Microsoft/Boot/bootmgfw.efi "
         "| grep -Fx fixture-windows-loader",
-        f"! lsblk -nr -o MOUNTPOINTS {windows} | grep -q '[^[:space:]]'",
+        f"test -z \"$(lsblk -nro MOUNTPOINTS {windows} | tr -d '[:space:]')\"",
     )

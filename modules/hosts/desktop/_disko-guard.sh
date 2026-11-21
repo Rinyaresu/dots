@@ -30,7 +30,7 @@ partition() {
   printf '%s\n' "$part"
 }
 
-all_guids=$(lsblk -lnro PARTUUID)
+all_guids=$(lsblk -nro PARTUUID)
 tree=$(lsblk -Jbo NAME,TYPE,PARTUUID,MOUNTPOINTS -- "$disk")
 jq -e --arg guid "$windows_esp" 'all(.. | objects; .partuuid != $guid)' <<< "$tree" >/dev/null ||
   die "protected Windows EFI is on the proposed target"
@@ -49,6 +49,7 @@ check_original() {
   if grep -Fxqe "$esp" -e "$root" <<< "$all_guids"; then
     die "new Linux GPT identities already exist"
   fi
+  [[ ! -L "$mount_root" ]] || die "$mount_root is a symlink"
   mounts=$(findmnt --raw --noheadings --output TARGET)
   if grep -Eq "^$mount_root(/|$)" <<< "$mounts"; then
     die "$mount_root has active mounts"
