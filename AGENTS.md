@@ -1,15 +1,11 @@
-# dots
+# Instruções para agentes
 
-O flake declara NixOS; não é configuração aplicada ao CachyOS. Para operação e recuperação, use o [procedimento do host](README.md). Para localizar os demais repositórios pessoais, use o mapa do Home.
+Use o [README](README.md) para entender os hosts, a arquitetura e os comandos de verificação. Para outros repositórios pessoais, consulte o mapa do `home`.
 
-## Composição
-
-- import-tree descobre módulos flake-parts em `modules/`. Prefixe hardware importado explicitamente com `_` para excluir da descoberta.
-- Publique por domínio em `flake.modules.nixos.<nome>` ou `flake.modules.homeManager.<nome>`. Contribua ao grupo diretamente, salvo quando houver consumidor independente. Use imports nativos e chaves distintas para contribuições anônimas reutilizadas por múltiplos caminhos.
-- Selecione capacidades em `modules/hosts/<host>/modules.nix`. O montador usa as chaves diretas de `configurations.nixos.<host>.modules` para associar Home Manager, nunca nomes transitivos. Associe a conta NixOS local via `homeUser`. Preserve separadamente `system.stateVersion` e `home.stateVersion`.
-- `common` é só NixOS; `base` reúne a base de CLI, `gui` os gráficos, e `desktop-personal` é exclusivo do desktop. Lab deve permanecer sem store, diretórios, chaves ou rede compartilhados com o host; Ordis não recebe Home Manager nem a conta pessoal.
-
-## Verificar e operar
-
-- Use os [gates nativos do README](README.md#verificar-sem-ativar). Para evidência, registre o SHA de uma fonte Git limpa; não use `path:` para contornar o recorte. Rode VMs pertinentes em KVM somente quando o contrato de runtime ou a derivação for afetado. Build não comprova hardware ou serviços reais.
-- Mantenha chaves privadas, identidades age, tokens, estado pessoal e recuperação fora de Git, store, logs e artefatos. A exceção é o ciphertext revisado de [`modules/system/users/rinyaresu/ssh/secrets.yaml`](modules/system/users/rinyaresu/ssh/secrets.yaml). Para provisionar, rotacionar ou recuperar, leia [o guia de credenciais](secrets/README.md).
+- **Escopo:** o flake configura NixOS, não o CachyOS atualmente em execução. Não confunda fonte declarada, geração ativa e bootada.
+- **Composição:** `import-tree` descobre módulos sob `modules/`; arquivos de hardware importados diretamente usam prefixo `_`. Novas capacidades pertencem ao domínio responsável e são selecionadas por host em `modules/hosts/<host>/modules.nix`. Preserve `system.stateVersion` e `home.stateVersion`.
+- **Isolamento:** o `lab` permanece sem rede, diretórios ou store compartilhados; Ordis não recebe Home Manager nem a conta pessoal. Não amplie grants, SSH, firewall ou acesso entre máquinas incidentalmente.
+- **Segredos:** versionar apenas ciphertext SOPS revisado; identidades age, chaves privadas, senhas, tokens e estado mutável ficam fora de Git, store e logs publicados. Declare cada segredo junto da funcionalidade responsável; não copie credenciais entre hosts.
+- **Evidência:** valide a menor superfície relevante e registre commit, comandos, resultados e limitações no Draft PR. Build não equivale a ativação; VMs não comprovam a rede ou o hardware real.
+- **Operações:** não faça merge, deploy, reboot, reparticionamento ou rotação de credenciais sem autorização específica. Preserve a recuperação e não interfira em worktrees ou sessões em uso.
+- **Documentação:** mantenha este arquivo mínimo. Decisões permanentes ficam preferencialmente no módulo ou teste; investigações, procedimentos temporários e relatórios ficam no PR, não em novos manuais.
