@@ -2,11 +2,16 @@
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 path = Path("flake.nix")
 source = path.read_text()
-for name, repo in (("pi", "earendil-works/pi"), ("herdr", "herdrdev/herdr")):
+projects = {"pi": "earendil-works/pi", "herdr": "herdrdev/herdr"}
+if len(sys.argv) != 2 or sys.argv[1] not in projects:
+    raise SystemExit("Usage: update-releases.py pi|herdr")
+for name in (sys.argv[1],):
+    repo = projects[name]
     pattern = rf'({name}\.url = "github:{re.escape(repo)}/)(v\d+\.\d+\.\d+)(";)'
     matches = list(re.finditer(pattern, source))
     if len(matches) != 1:
