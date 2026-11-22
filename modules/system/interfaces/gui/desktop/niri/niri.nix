@@ -11,8 +11,16 @@
     };
 
   flake.modules.homeManager.niri =
-    { osConfig, pkgs, ... }:
+    {
+      lib,
+      osConfig,
+      pkgs,
+      ...
+    }:
     let
+      simpleBlue = pkgs.nixos-artwork.wallpapers.simple-blue;
+      pactl = lib.getExe' pkgs.pulseaudio "pactl";
+      brightnessctl = lib.getExe pkgs.brightnessctl;
       sattyConfig = pkgs.writeText "satty-capture.toml" ''
         [general]
         early-exit = true
@@ -51,6 +59,9 @@
 
         layout {
             background-color "#faf4ed"
+            focus-ring {
+                active-color "#d7827e"
+            }
         }
 
         screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
@@ -82,6 +93,7 @@
             Mod+7 { focus-workspace 7; }
             Mod+8 { focus-workspace 8; }
             Mod+9 { focus-workspace 9; }
+            Mod+0 { focus-workspace 10; }
             Mod+Shift+1 { move-column-to-workspace 1; }
             Mod+Shift+2 { move-column-to-workspace 2; }
             Mod+Shift+3 { move-column-to-workspace 3; }
@@ -91,14 +103,29 @@
             Mod+Shift+7 { move-column-to-workspace 7; }
             Mod+Shift+8 { move-column-to-workspace 8; }
             Mod+Shift+9 { move-column-to-workspace 9; }
+            Mod+Shift+0 { move-column-to-workspace 10; }
             Mod+Shift+H { move-column-left; }
             Mod+Shift+J { move-window-down; }
             Mod+Shift+K { move-window-up; }
             Mod+Shift+L { move-column-right; }
             Mod+R { switch-preset-column-width; }
+            Mod+Ctrl+H { set-column-width "-5%"; }
+            Mod+Ctrl+L { set-column-width "+5%"; }
+            Mod+Ctrl+J { set-window-height "+5%"; }
+            Mod+Ctrl+K { set-window-height "-5%"; }
+            Mod+W { toggle-column-tabbed-display; }
+            Mod+Comma { consume-window-into-column; }
+            Mod+Period { expel-window-from-column; }
             Mod+F { fullscreen-window; }
             Mod+Shift+F { maximize-column; }
+            Mod+Alt+F { toggle-windowed-fullscreen; }
             Mod+Shift+Space { toggle-window-floating; }
+            XF86AudioRaiseVolume allow-when-locked=true { spawn "${pactl}" "set-sink-volume" "@DEFAULT_SINK@" "+10%"; }
+            XF86AudioLowerVolume allow-when-locked=true { spawn "${pactl}" "set-sink-volume" "@DEFAULT_SINK@" "-10%"; }
+            XF86AudioMute allow-when-locked=true repeat=false { spawn "${pactl}" "set-sink-mute" "@DEFAULT_SINK@" "toggle"; }
+            XF86AudioMicMute allow-when-locked=true repeat=false { spawn "${pactl}" "set-source-mute" "@DEFAULT_SOURCE@" "toggle"; }
+            XF86MonBrightnessUp allow-when-locked=true { spawn "${brightnessctl}" "set" "+5%"; }
+            XF86MonBrightnessDown allow-when-locked=true { spawn "${brightnessctl}" "set" "5%-"; }
             Print hotkey-overlay-title="Capture region, annotate in Satty, Enter saves and copies" { spawn "${capture}/bin/niri-screenshot"; }
             Mod+Shift+Delete hotkey-overlay-title="Clear unpinned clipboard history" { spawn "${pkgs.noctalia}/bin/noctalia" "msg" "clipboard-clear"; }
             Ctrl+Print { screenshot-screen; }
@@ -132,6 +159,13 @@
         show_cursor = false
 
         [wallpaper]
+        enabled = true
+        directory = "${builtins.dirOf simpleBlue.gnomeFilePath}"
+
+        [wallpaper.default]
+        path = "${simpleBlue.gnomeFilePath}"
+
+        [wallpaper.automation]
         enabled = false
 
         [theme]
