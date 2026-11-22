@@ -1,0 +1,30 @@
+
+if [[ ${HERDR_ENV:-} == 1 ]]; then
+  exec unwork-herdr "$@"
+fi
+
+[[ -n ${TMUX:-} ]] || exit 1
+
+WORK_WINDOWS=("dev" "tests")
+SHELLS=("zsh" "bash" "fish" "sh")
+MAX_WAIT=10
+
+for win_name in "${WORK_WINDOWS[@]}"; do
+  tmux list-windows -F '#{window_name}' | grep -qx "$win_name" || continue
+
+  for pane_id in $(tmux list-panes -t "$win_name" -F '#{pane_id}'); do
+    tmux send-keys -t "$pane_id" C-c
+
+    waited=0
+    while (( waited < MAX_WAIT )); do
+      pane_cmd=$(tmux display-message -p -t "$pane_id" '#{pane_current_command}')
+      if [[ " ${SHELLS[*]} " == *" $pane_cmd "* ]]; then
+        break
+      fi
+      sleep 1
+      ((waited++))
+    done
+  done
+
+  tmux kill-window -t "$win_name"
+done

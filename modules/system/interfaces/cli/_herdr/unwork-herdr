@@ -1,0 +1,23 @@
+set -euo pipefail
+: "${HERDR_WORKSPACE_ID:?Execute unwork dentro do Herdr}"
+mapfile -t tabs < <(herdr tab list --workspace "$HERDR_WORKSPACE_ID" |
+  jq -r '.result.tabs[] | select(.label == "dev" or .label == "tests") | .tab_id')
+for tab in "${tabs[@]}"; do
+  mapfile -t panes < <(herdr pane list --workspace "$HERDR_WORKSPACE_ID" |
+    jq -r --arg tab "$tab" '.result.panes[] | select(.tab_id == $tab) | .pane_id')
+  for pane in "${panes[@]}"; do
+    herdr pane send-keys "$pane" ctrl+c >/dev/null
+  done
+  # Give services time to shut down before closing their terminal processes.
+  for pane in "${panes[@]}"; do
+    for ((waited=0; waited<10; waited++)); do
+      info="$(herdr pane process-info --pane "$pane")"
+      if jq -e '.result.process_info | .shell_pid as $shell |
+          all(.foreground_processes[]; .pid == $shell)' <<< "$info" >/dev/null; then
+        break
+      fi
+      sleep 1
+    done
+  done
+  herdr tab close "$tab"
+done

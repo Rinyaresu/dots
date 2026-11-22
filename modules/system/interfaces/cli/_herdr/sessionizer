@@ -1,0 +1,46 @@
+set -euo pipefail
+
+if [[ ${HERDR_ENV:-} != 1 ]]; then
+  if [[ $# == 1 ]]; then
+    cd -- "$1"
+  fi
+  exec herdr
+fi
+
+choices() {
+  herdr workspace list |
+    jq -r '.result.workspaces[] | ["[HERDR] " + .label, "WORKSPACE:" + .workspace_id] | @tsv'
+  local base dir
+  for base in "$HOME/personal" "$HOME/personal/dev/env/.config"; do
+    [[ -d $base ]] || continue
+    while IFS= read -r -d '' dir; do
+      printf '%s/%s\t%s\n' "$(basename "$base")" "$(basename "$dir")" "$dir"
+    done < <(find "$base" -mindepth 1 -maxdepth 1 -type d -print0)
+  done
+}
+
+if [[ $# == 1 ]]; then
+  selected="$1"
+else
+  line="$(choices | sort -u | fzf --delimiter=$'\t' --with-nth=1)" || exit 0
+  selected="${line#*$'\t'}"
+fi
+[[ -n $selected ]] || exit 0
+
+if [[ $selected == WORKSPACE:* ]]; then
+  exec herdr workspace focus "${selected#WORKSPACE:}"
+fi
+
+[[ -d $selected ]] || { printf 'Diretório não encontrado: %s\n' "$selected" >&2; exit 1; }
+selected="$(cd -- "$selected" && pwd -P)"
+existing="$(herdr pane list | jq -r --arg cwd "$selected" '[.result.panes[] | select(.cwd == $cwd or .foreground_cwd == $cwd) | .workspace_id][0] // empty')"
+if [[ -n $existing ]]; then
+  exec herdr workspace focus "$existing"
+fi
+created="$(herdr workspace create --cwd "$selected" --label "$(basename "$selected")" --focus)"
+hook="$selected/.herdr-sessionizer"
+[[ -f $hook ]] || hook="$HOME/.herdr-sessionizer"
+if [[ -f $hook ]]; then
+  printf -v command 'source %q' "$hook"
+  herdr pane run "$(jq -er '.result.root_pane.pane_id' <<< "$created")" "$command"
+fi

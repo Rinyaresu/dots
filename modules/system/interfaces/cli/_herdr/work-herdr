@@ -1,0 +1,36 @@
+set -euo pipefail
+: "${HERDR_WORKSPACE_ID:?Execute work dentro do Herdr}"
+start_dir="$(cd -- "${1:-$PWD}" && pwd)"
+tabs="$(herdr tab list --workspace "$HERDR_WORKSPACE_ID")"
+if jq -e '.result.tabs[] | select(.label == "dev" or .label == "tests")' <<< "$tabs" >/dev/null; then
+  echo 'Já existe uma aba dev/tests neste workspace. Use unwork antes de recriar.' >&2
+  exit 1
+fi
+
+create_tab() {
+  herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$start_dir" --label "$1" --no-focus
+}
+split() {
+  herdr pane split "$1" --direction "$2" --cwd "$start_dir" --no-focus |
+    jq -er '.result.pane.pane_id'
+}
+run() { herdr pane run "$1" "$2" >/dev/null; }
+
+dev="$(create_tab dev)"
+web="$(jq -er '.result.root_pane.pane_id' <<< "$dev")"
+redis="$(split "$web" down)"
+vite="$(split "$web" right)"
+sidekiq="$(split "$redis" right)"
+run "$web" "rails s -b 0.0.0.0 -p 3000"
+run "$redis" "redis-server"
+run "$vite" "bin/vite dev"
+run "$sidekiq" "bundle exec sidekiq"
+
+tests="$(create_tab tests)"
+watch="$(jq -er '.result.root_pane.pane_id' <<< "$tests")"
+console="$(split "$watch" down)"
+testing="$(split "$watch" right)"
+run "$watch" "yarn test-watch"
+run "$console" "bundle exec rails console"
+run "$testing" "testing"
+herdr tab focus "$(jq -er '.result.tab.tab_id' <<< "$dev")"

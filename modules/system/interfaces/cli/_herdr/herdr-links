@@ -1,0 +1,86 @@
+"""Choose a visible HTTP(S) URL from the caller's Herdr scrollback."""
+
+import os
+import re
+import subprocess
+import sys
+
+
+ANSI = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]")
+URL = re.compile(r"https?://[^\s<>\x00-\x20\x7f\"'`]+", re.IGNORECASE)
+
+
+def extract_urls(text):
+    urls = []
+    seen = set()
+    for match in URL.finditer(ANSI.sub("", text)):
+        url = match.group().rstrip(".,;:!?")
+        # Keep balanced URL parentheses/brackets, remove surrounding prose/Markdown.
+        while url and url[-1] in ")]}":
+            closing = url[-1]
+            opening = {")": "(", "]": "[", "}": "{"}[closing]
+            if url.count(closing) <= url.count(opening):
+                break
+            url = url[:-1].rstrip(".,;:!?")
+        if not re.match(r"https?://[^/?#]+", url, re.IGNORECASE):
+            continue
+        if url not in seen:
+            seen.add(url)
+            urls.append(url)
+    return urls
+
+
+def message(text):
+    print(text, file=sys.stderr)
+    if sys.stdin.isatty():
+        try:
+            input("Enter para fechar.")
+        except (EOFError, KeyboardInterrupt):
+            pass
+
+
+def main():
+    pane = os.environ.get("HERDR_PANE_ID") or os.environ.get("HERDR_ACTIVE_PANE_ID")
+    if os.environ.get("HERDR_ENV") != "1" or not pane:
+        message("Abra pelo atalho Ctrl+b, u dentro do Herdr.")
+        return 1
+
+    try:
+        snapshot = subprocess.run(
+            ["herdr", "pane", "read", pane, "--source", "recent-unwrapped",
+             "--lines", "10000", "--format", "text", "--raw"],
+            check=True, capture_output=True, text=True, timeout=15,
+        ).stdout
+        urls = extract_urls(snapshot)
+        if not urls:
+            message("Nenhum link HTTP(S) encontrado no histórico disponível deste painel.")
+            return 0
+
+        selected = subprocess.run(
+            ["fzf", "--no-multi", "--no-sort", "--layout=reverse", "--border",
+             "--prompt=Link > ", "--header=Enter: abrir no navegador | Esc: cancelar",
+             "--bind=enter:accept"],
+            input="\n".join(urls) + "\n", stdout=subprocess.PIPE, text=True,
+        )
+        if selected.returncode in (1, 130):
+            return 0
+        selected.check_returncode()
+        url = selected.stdout.strip()
+        if url not in urls:
+            message("O seletor retornou um link inválido; nada foi aberto.")
+            return 1
+
+        # Do not use a shell or leave browser processes attached to the popup PTY.
+        subprocess.Popen(
+            ["xdg-open", url], stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return 0
+    except (OSError, subprocess.SubprocessError) as error:
+        message(f"Não foi possível abrir o seletor de links: {error}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

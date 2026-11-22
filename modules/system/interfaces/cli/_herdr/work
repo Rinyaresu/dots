@@ -1,0 +1,62 @@
+
+if [[ ${HERDR_ENV:-} == 1 ]]; then
+  exec work-herdr "$@"
+fi
+
+if [ -z "${TMUX:-}" ]; then
+  exit 1
+fi
+
+START_DIR="${1:-$PWD}"
+REPORT_ENGINE_DIR="$START_DIR/report_engine"
+
+CMD_WEB="rails s -b 0.0.0.0 -p 3000"
+CMD_VITE="bin/vite dev"
+CMD_REDIS="redis-server"
+CMD_SIDEKIQ="bundle exec sidekiq"
+
+CMD_TEST_WATCH="yarn test-watch"
+CMD_RAILS_CONSOLE="bundle exec rails console"
+CMD_TESTING="testing"
+
+WIN_SHELL_NAME="shell"
+WIN_APP_NAME="dev"
+
+WIN_SHELL_ID=$(tmux new-window -d -P -F '#{window_id}' -n "$WIN_SHELL_NAME" -c "$START_DIR")
+
+WIN_APP_ID=$(tmux new-window -d -P -F '#{window_id}' -n "$WIN_APP_NAME" -c "$START_DIR")
+PANE_WEB_ID=$(tmux display-message -p -t "$WIN_APP_ID" '#{pane_id}')
+tmux send-keys -t "$PANE_WEB_ID" "$CMD_WEB" "C-m"
+
+PANE_REDIS_ID=$(tmux split-window -v -p 50 -P -F '#{pane_id}' -t "$PANE_WEB_ID" -c "$START_DIR")
+tmux send-keys -t "$PANE_REDIS_ID" "$CMD_REDIS" "C-m"
+
+PANE_VITE_ID=$(tmux split-window -h -p 50 -P -F '#{pane_id}' -t "$PANE_WEB_ID" -c "$START_DIR")
+tmux send-keys -t "$PANE_VITE_ID" "$CMD_VITE" "C-m"
+
+PANE_SIDEKIQ_ID=$(tmux split-window -h -p 50 -P -F '#{pane_id}' -t "$PANE_REDIS_ID" -c "$START_DIR")
+tmux send-keys -t "$PANE_SIDEKIQ_ID" "$CMD_SIDEKIQ" "C-m"
+
+PANE_REPORT_ENGINE_ID=$(tmux split-window -v -p 50 -P -F '#{pane_id}' -t "$PANE_REDIS_ID" -c "$REPORT_ENGINE_DIR")
+tmux send-keys -t "$PANE_REPORT_ENGINE_ID" "cargo run" "C-m"
+
+WIN_TESTS_NAME="tests"
+
+WIN_TESTS_ID=$(tmux new-window -d -P -F '#{window_id}' -n "$WIN_TESTS_NAME" -c "$START_DIR")
+PANE_TOP_LEFT_ID=$(tmux display-message -p -t "$WIN_TESTS_ID" '#{pane_id}')
+
+PANE_BOTTOM_ID=$(tmux split-window -v -p 50 -P -F '#{pane_id}' -t "$PANE_TOP_LEFT_ID" -c "$START_DIR")
+tmux send-keys -t "$PANE_BOTTOM_ID" "$CMD_RAILS_CONSOLE" "C-m"
+
+PANE_TOP_RIGHT_ID=$(tmux split-window -h -p 50 -P -F '#{pane_id}' -t "$PANE_TOP_LEFT_ID" -c "$START_DIR")
+tmux send-keys -t "$PANE_TOP_LEFT_ID"  "$CMD_TEST_WATCH" "C-m"
+tmux send-keys -t "$PANE_TOP_RIGHT_ID" "$CMD_TESTING" "C-m"
+
+if [ -n "$WIN_SHELL_ID" ]; then
+  tmux select-window -t "$WIN_SHELL_ID"
+else
+  FIRST_AVAILABLE_WINDOW_ID=$(tmux list-windows -F '#{window_id}' | head -n 1)
+  if [ -n "$FIRST_AVAILABLE_WINDOW_ID" ]; then
+    tmux select-window -t "$FIRST_AVAILABLE_WINDOW_ID"
+  fi
+fi
