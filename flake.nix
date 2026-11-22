@@ -15,7 +15,7 @@
     pi.url = "github:earendil-works/pi/v1.5.0";
     pi.inputs.nixpkgs.follows = "nixpkgs";
     pi.inputs.nixpkgs-darwin-x64.follows = "nixpkgs";
-    herdr.url = "github:herdrdev/herdr/2ecf19a92fc3a7fff75b6ce3655ef04f4625ec01";
+    herdr.url = "github:herdrdev/herdr/v0.9.5";
     herdr.inputs.nixpkgs.follows = "nixpkgs";
   };
 
