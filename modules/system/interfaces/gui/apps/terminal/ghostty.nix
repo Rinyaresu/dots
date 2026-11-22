@@ -42,8 +42,8 @@
           cursor-style = "block";
           cursor-style-blink = true;
           shell-integration-features = "no-cursor";
-          window-padding-x = 0;
-          window-padding-y = 0;
+          window-padding-x = 4;
+          window-padding-y = 4;
           background-opacity = 1.0;
           confirm-close-surface = false;
           window-decoration = "server";
