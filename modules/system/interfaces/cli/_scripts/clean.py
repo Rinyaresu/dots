@@ -2,15 +2,36 @@ import argparse
 import fnmatch
 import os
 from pathlib import Path
-import shutil
 import stat
 import subprocess
 import sys
 
 
-DIR_TYPES = {"tmp", "log", ".cache", "public"}
-FILE_TYPES = ("*.pid", "*.swp", "*.swo", "*.DS_Store", "*.log", "*-dump-*-raw.sql")
-DUMP_PATTERN = FILE_TYPES[-1]
+EDITOR_ARTIFACTS = ("*.swp", "*.swo", ".DS_Store")
+TEMP_ARTIFACTS = ("*.pid", "*.log")
+DUMP_PATTERN = "*-dump-*-raw.sql"
+
+
+def file_identity(metadata):
+    return (metadata.st_dev, metadata.st_ino, metadata.st_size,
+            metadata.st_mtime_ns, metadata.st_ctime_ns)
+
+
+def unlink_checked(home, path, identity):
+    # Anchor traversal to HOME and refuse symlinked parents after confirmation.
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.open(home, flags)
+    try:
+        for part in path.relative_to(home).parts[:-1]:
+            child = os.open(part, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        metadata = os.stat(path.name, dir_fd=descriptor, follow_symlinks=False)
+        if not stat.S_ISREG(metadata.st_mode) or file_identity(metadata) != identity:
+            raise ValueError(f"Candidate changed during cleanup: {os.fspath(path)!r}")
+        os.unlink(path.name, dir_fd=descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def scan_error(error):
@@ -30,42 +51,36 @@ def plan_cleanup(roots):
         for parent, dirs, files in os.walk(root, onerror=scan_error):
             parent = Path(parent)
             relative = parent.relative_to(root).parts
-            for name in dirs:
-                path = parent / name
-                if path.is_symlink():
-                    continue
-                if name in DIR_TYPES and len(relative) < 2:
-                    candidates[path] = name
-                if name == ".cache" and relative[-1:] == ("node_modules",) and len(relative) < 3:
-                    candidates[path] = "node_modules/.cache"
+            # Each immediate child of the cleanup root is a separate project.
+            # Do not traverse assets or Git internals, even if a name matches.
+            dirs[:] = [name for name in dirs if name not in {"public", ".git"}]
+            if not relative or relative[0].startswith("."):
+                continue
+            project = root / relative[0]
+            inside = relative[1:]
+            cache = inside[:2] == ("node_modules", ".cache")
+            if "node_modules" in inside and not cache:
+                continue
+            temporary = cache or inside[:1] in {("tmp",), (".cache",)}
             for name in files:
                 path = parent / name
-                if not stat.S_ISREG(path.lstat().st_mode):
+                metadata = path.lstat()
+                if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
                     continue
+                identity = file_identity(metadata)
                 if fnmatch.fnmatchcase(name, DUMP_PATTERN):
-                    group = (root, name.split("-dump-", 1)[0])
-                    newer = (os.fsencode(name), path)
-                    if group not in latest or newer > latest[group]:
-                        latest[group] = newer
-                if "node_modules" in relative:
+                    group = (project, name.split("-dump-", 1)[0])
+                    newest_time = latest.get(group, metadata.st_mtime_ns)
+                    latest[group] = max(newest_time, metadata.st_mtime_ns)
+                    candidates[path] = (DUMP_PATTERN, identity, group)
                     continue
-                for pattern in FILE_TYPES:
+                for pattern in EDITOR_ARTIFACTS + (TEMP_ARTIFACTS if temporary else ()):
                     if fnmatch.fnmatchcase(name, pattern):
-                        candidates[path] = pattern
+                        candidates[path] = (pattern, identity, None)
                         break
-    for _, dump in latest.values():
-        candidates.pop(dump, None)
-        for parent in dump.parents:
-            candidates.pop(parent, None)
-    return {path: candidates[path] for path in sorted(candidates)
-            if not any(parent in candidates for parent in path.parents)}
-
-
-def size(path):
-    if path.is_dir():
-        result = subprocess.check_output(["du", "-sb", "--", path])
-        return int(result.split(b"\t", 1)[0])
-    return path.stat().st_size
+    # Preserve all ties rather than guessing which backup to keep.
+    return {path: (kind, identity) for path, (kind, identity, group) in sorted(candidates.items())
+            if group is None or identity[3] < latest[group]}
 
 
 def human_size(value):
@@ -75,8 +90,8 @@ def human_size(value):
 def show_plan(plan):
     totals = {}
     print("The following files/directories will be removed:")
-    for path, kind in plan.items():
-        space = size(path)
+    for path, (kind, identity) in plan.items():
+        space = identity[2]
         totals[kind] = totals.get(kind, 0) + space
         display = os.fspath(path)
         if not display.isprintable():
@@ -92,7 +107,8 @@ def main():
     parser = argparse.ArgumentParser(description="Preview cleanup and keep the newest dump of each set.")
     parser.add_argument("--dry-run", action="store_true", help="show the plan without asking to delete")
     args = parser.parse_args()
-    roots = [Path.home().resolve(strict=True) / "personal"]
+    home = Path.home().resolve(strict=True)
+    roots = [home / "personal"]
     print("Scanning for files/directories to clean (dry-run)...")
     plan = plan_cleanup(roots)
     if not plan:
@@ -110,11 +126,8 @@ def main():
         return 0
     if plan_cleanup(roots) != plan:
         raise ValueError("The cleanup plan changed. Nothing was removed. Inspect it again before continuing.")
-    for path in plan:
-        if stat.S_ISDIR(path.lstat().st_mode):
-            shutil.rmtree(path)
-        else:
-            path.unlink()
+    for path, (_, identity) in plan.items():
+        unlink_checked(home, path, identity)
         print(f"Removed: {os.fspath(path)!r}")
     print("Cleanup completed!")
     return 0
