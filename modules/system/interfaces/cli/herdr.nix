@@ -1,6 +1,27 @@
 { config, inputs, ... }:
 let
   fish = config.flake.modules.homeManager.fish;
+  packageFor =
+    system:
+    let
+      upstream = inputs.herdr.inputs.nixpkgs.legacyPackages.${system};
+      archive = "https://codeberg.org/vancluever/translate-c/archive/4e879eb8aba615de112eabd1231ea6e01920cead.tar.gz";
+    in
+    inputs.herdr.packages.${system}.herdr.override {
+      callPackage =
+        path: args:
+        upstream.callPackage path (
+          args
+          // {
+            # The bare archive URL returns HTTP 500; keep the upstream revision and hash.
+            fetchzip =
+              attrs:
+              upstream.fetchzip (
+                if (attrs.url or "") == archive then attrs // { url = "${archive}?download=1"; } else attrs
+              );
+          }
+        );
+    };
 in
 {
   flake.modules.homeManager.herdr =
@@ -11,7 +32,7 @@ in
       ...
     }:
     let
-      herdr = inputs.herdr.packages.${pkgs.stdenv.hostPlatform.system}.herdr;
+      herdr = packageFor pkgs.stdenv.hostPlatform.system;
     in
     {
       key = "${__curPos.file}#homeManager.herdr";
@@ -67,7 +88,7 @@ in
       ...
     }:
     let
-      herdr = inputs.herdr.packages.${pkgs.stdenv.hostPlatform.system}.herdr;
+      herdr = packageFor pkgs.stdenv.hostPlatform.system;
       script = name: pkgs.writeShellScriptBin name (builtins.readFile (./_herdr + "/${name}"));
       links = pkgs.writeScriptBin "herdr-links" ''
         #!${lib.getExe pkgs.python3}
