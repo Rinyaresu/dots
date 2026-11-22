@@ -5,32 +5,17 @@ if [[ "$EVENT" == workflow_dispatch ]]; then
   [[ "$ADVISORY" =~ ^(CVE-[0-9]{4}-[0-9]{4,}|GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4})$ ]] || {
     echo 'Invalid advisory identifier' >&2; exit 1;
   }
-  [[ "$LANE" == general ]] || exit 0
 fi
 
-case "$LANE" in
-  general)
-    mapfile -t inputs < <(jq -r '.nodes[.root].inputs | keys[] | select(. != "pi" and . != "herdr")' flake.lock)
-    ((${#inputs[@]} > 0))
-    nix flake update "${inputs[@]}"
-    ;;
-  pi|herdr)
-    python3 .github/update-releases.py "$LANE"
-    nix flake update "$LANE"
-    ;;
-  *) echo "Invalid update lane: $LANE" >&2; exit 1 ;;
-esac
+nix flake update
 
-git diff --exit-code -- . ':!flake.lock' ':!flake.nix'
-if git diff --quiet -- flake.lock flake.nix; then
-  echo "No $LANE updates." >> "$GITHUB_STEP_SUMMARY"
+git diff --exit-code -- . ':!flake.lock'
+if git diff --quiet -- flake.lock; then
+  echo "No flake updates." >> "$GITHUB_STEP_SUMMARY"
   exit 0
 fi
-echo "Updates available for $LANE:" >> "$GITHUB_STEP_SUMMARY"
-git diff --stat -- flake.nix flake.lock >> "$GITHUB_STEP_SUMMARY"
-if [[ "$LANE" == general && "$EVENT" != workflow_dispatch && "$SCHEDULE" != '41 8 * * 1' ]]; then
-  exit 0
-fi
+echo "Flake updates available:" >> "$GITHUB_STEP_SUMMARY"
+git diff --stat -- flake.lock >> "$GITHUB_STEP_SUMMARY"
 
 latest=$(gh api --method GET "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq .object.sha)
 [[ "$latest" == "$GITHUB_SHA" ]] || { echo 'master moved; refusing a stale proposal.' >&2; exit 1; }
@@ -42,26 +27,24 @@ else
   echo 'Cannot read Actions PR policy with this token; publication may be blocked.' >&2
 fi
 
-title="chore: update $LANE flake inputs"
+title="chore: update flake inputs"
 if [[ -n "$ADVISORY" ]]; then title="security: update flake inputs for $ADVISORY"; fi
 candidate=$(git hash-object flake.lock)
-candidate_flake=$(git hash-object flake.nix)
 open=$(gh pr list --repo "$GITHUB_REPOSITORY" --base master --state open --limit 100 \
   --json headRefName,headRefOid,title,isCrossRepository \
-  --jq ".[] | select(.isCrossRepository == false and (.headRefName | startswith(\"automation/flake-$LANE-\"))) | [.headRefOid,.title] | @tsv")
+  --jq ".[] | select(.isCrossRepository == false and (.headRefName | startswith(\"automation/flake-lock-\"))) | [.headRefOid,.title] | @tsv")
 while IFS=$'\t' read -r previous previous_title; do
   [[ "$previous" =~ ^[a-f0-9]{40}$ && "$previous_title" == "$title" ]] || continue
   blob=$(gh api --method GET "repos/$GITHUB_REPOSITORY/contents/flake.lock?ref=$previous" --jq .sha)
-  flake_blob=$(gh api --method GET "repos/$GITHUB_REPOSITORY/contents/flake.nix?ref=$previous" --jq .sha)
-  if [[ "$candidate" == "$blob" && "$candidate_flake" == "$flake_blob" ]]; then
+  if [[ "$candidate" == "$blob" ]]; then
     echo 'An identical candidate already has an open PR.' >> "$GITHUB_STEP_SUMMARY"
     exit 0
   fi
 done <<< "$open"
 
-git add -- flake.nix flake.lock
+git add -- flake.lock
 tree=$(git write-tree)
-branch="automation/flake-$LANE-${GITHUB_SHA:0:12}-${tree:0:12}"
+branch="automation/flake-lock-${GITHUB_SHA:0:12}-${tree:0:12}"
 remote_status=0
 git ls-remote --exit-code --heads origin "refs/heads/$branch" > /dev/null || remote_status=$?
 [[ "$remote_status" == 0 || "$remote_status" == 2 ]] || { echo 'Could not inspect remote branch.' >&2; exit 1; }
@@ -83,7 +66,7 @@ checks="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/check.yml?query=
 gh workflow run check.yml --repo "$GITHUB_REPOSITORY" --ref "$branch" -f expected_sha="$sha" || {
   echo "CI dispatch failed for $branch; rerun to reuse the same branch." >&2; exit 1;
 }
-body="Review the reference and lockfile changes and [Checks for this exact branch]($checks). This proposal does not merge, deploy or reboot anything."
+body="Review the lockfile changes and [Checks for this exact branch]($checks). This proposal does not merge, deploy or reboot anything."
 if [[ -n "$ADVISORY" ]]; then
   body="Priority review for $ADVISORY. Verify that the candidate actually includes the fix before accepting. $body"
 fi

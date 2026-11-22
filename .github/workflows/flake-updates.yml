@@ -2,7 +2,6 @@ name: Flake updates
 
 on:
   schedule:
-    - cron: '23 8 * * *'
     - cron: '41 8 * * 1'
   workflow_dispatch:
     inputs:
@@ -21,10 +20,6 @@ jobs:
   update:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        lane: [general, pi, herdr]
     permissions:
       contents: write
       pull-requests: write
@@ -34,11 +29,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
-      - name: Probe and propose ${{ matrix.lane }}
+      - name: Propose lockfile updates
         env:
           GH_TOKEN: ${{ github.token }}
-          LANE: ${{ matrix.lane }}
           ADVISORY: ${{ inputs.advisory }}
           EVENT: ${{ github.event_name }}
-          SCHEDULE: ${{ github.event.schedule }}
         run: bash .github/propose-flake.sh

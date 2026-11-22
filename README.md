@@ -43,7 +43,9 @@ nix build --no-link --no-write-lock-file .#nixosConfigurations.ordis.config.syst
 
 Troque `ordis` por `desktop` ou `lab` conforme o alvo. Os testes de runtime em KVM são packages separados, por exemplo `nix build --no-link -L .#packages.x86_64-linux.secret-runtime`. Build e VM não ativam a configuração nem validam o hardware real. A CI executa checks e builds dos hosts, mas não todos os testes de runtime.
 
-O workflow de atualização mantém propostas independentes para Pi, Herdr e os demais inputs. As releases estáveis de Pi e Herdr são sondadas diariamente; os demais inputs são sondados diariamente e propostos semanalmente ou para um advisory informado manualmente. Cada proposta mantém as referências e o `flake.lock` juntos e solicita os checks sem fazer merge ou deploy. A publicação exige que a política do repositório permita que o GitHub Actions crie PRs. Se a publicação falhar, confira o log e a política antes de autorizar qualquer mudança de permissões; uma tentativa posterior reutiliza a branch do mesmo candidato.
+Use `nix flake update pi herdr` para atualizar só Pi e Herdr, ou `nix flake update` para atualizar todos os inputs. O Pi segue a branch oficial [`stable`](https://github.com/earendil-works/pi/tree/stable). O Herdr usa [`herdr-nix`](https://github.com/herdrdev/herdr-nix), o flake oficial que empacota binários de releases estáveis com hashes fixos. Ele não segue a branch de desenvolvimento do Herdr. O `flake.lock` fixa as revisões resolvidas; revise e versione o diff ao atualizar.
+
+O workflow roda `nix flake update` semanalmente ou sob demanda para um advisory. Ele propõe só mudanças no `flake.lock` e solicita os checks, sem merge ou deploy. A publicação exige que a política do repositório permita que o GitHub Actions crie PRs. Se a publicação falhar, confira o log e a política antes de autorizar qualquer mudança de permissões; uma tentativa posterior reutiliza a branch do mesmo candidato.
 
 ## Segredos
 
