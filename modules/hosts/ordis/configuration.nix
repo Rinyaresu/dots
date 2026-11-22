@@ -66,7 +66,6 @@
     };
     console.keyMap = "us-acentos";
 
-    zramSwap.enable = false;
     nixpkgs.config.allowUnfree = true;
     system.stateVersion = "26.05";
   };

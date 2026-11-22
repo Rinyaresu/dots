@@ -50,6 +50,7 @@ sys.exit(int(os.environ.get("HERDR_TEST_EXIT", "0")))
         ("console", {}),
         ("nested", {"DISPLAY": ":0", "HERDR_ENV": "1"}),
         ("pane", {"DISPLAY": ":0", "HERDR_PANE_ID": "fixture"}),
+        ("tmux", {"DISPLAY": ":0", "TMUX": "/tmp/tmux-test/default,42,0"}),
         ("ssh", {"DISPLAY": ":10", "SSH_CONNECTION": "fixture"}),
         ("ssh-tty", {"DISPLAY": ":10", "SSH_TTY": "/dev/pts/1"}),
         ("opt-out", {"DISPLAY": ":0", "HERDR_NO_AUTO": "1"}),
@@ -59,4 +60,4 @@ sys.exit(int(os.environ.get("HERDR_TEST_EXIT", "0")))
     assert "COMMON_SHELL" in run("no-tty", {"DISPLAY": ":0"}, succeeds=False, tty=False)
     assert "COMMON_SHELL" in run("failure", {"DISPLAY": ":0", "HERDR_TEST_EXIT": "1"})
 
-print("PASS graphical attach, console, script, SSH, nested pane, opt-out, failed attach fallback")
+print("PASS graphical attach, console, script, SSH, nested pane, tmux, opt-out, failed attach fallback")

@@ -1,0 +1,94 @@
+onboarding = false
+
+[theme]
+name = "rose-pine-dawn"
+
+[keys]
+prefix = "ctrl+b"
+split_vertical = "prefix+|"
+split_horizontal = "prefix+minus"
+zoom = "prefix+shift+m"
+detach = "prefix+d"
+reload_config = "prefix+shift+r"
+clear_pane = "prefix+alt+l"
+copy_mode = "prefix+v"
+
+[[keys.command]]
+key = "prefix+f"
+type = "popup"
+command = "sessionizer"
+width = "80%"
+height = "80%"
+
+[[keys.command]]
+key = "prefix+u"
+type = "popup"
+command = "herdr-links"
+width = "85%"
+height = "70%"
+
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "annotate.capture"
+description = "Anotar texto selecionado"
+
+[[keys.command]]
+key = "prefix+shift+a"
+type = "plugin_action"
+command = "annotate.copy-context"
+description = "Copiar anotações"
+
+[[keys.command]]
+key = "prefix+ctrl+a"
+type = "plugin_action"
+command = "annotate.copy-archive"
+description = "Copiar e arquivar anotações"
+
+[[keys.command]]
+key = "prefix+ctrl+v"
+type = "plugin_action"
+command = "annotate.paste-archive"
+description = "Colar anotações no agente sem enviar e arquivar"
+
+[[keys.command]]
+key = "prefix+ctrl+s"
+type = "plugin_action"
+command = "annotate.send-archive"
+description = "Enviar anotações ao agente e arquivar"
+
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "annotate.manage"
+description = "Gerenciar anotações"
+
+[[keys.command]]
+key = "prefix+alt+o"
+type = "plugin_action"
+command = "annotate.open"
+description = "Revisar documentos desta pasta"
+
+[[keys.command]]
+key = "prefix+shift+o"
+type = "plugin_action"
+command = "annotate.last"
+description = "Escolher resposta recente do agente para revisar"
+
+[[keys.command]]
+key = "prefix+ctrl+o"
+type = "plugin_action"
+command = "annotate.last-newest"
+description = "Revisar a resposta mais nova do agente"
+
+[[keys.command]]
+key = "prefix+t"
+type = "plugin_action"
+command = "annotate.terminal"
+description = "Revisar saída recente deste painel"
+
+[ui.sidebar.agents]
+rows = [
+  ["state_icon", "$agent_tree_branch", "machine", "workspace", "tab"],
+  ["agent"],
+]

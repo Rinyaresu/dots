@@ -1,0 +1,30 @@
+format = "$directory$git_branch$git_status$git_state$nix_shell$line_break$character"
+palette = "rose_pine_dawn"
+
+[palettes.rose_pine_dawn]
+text = "#575279"
+iris = "#907aa9"
+pine = "#286983"
+love = "#b4637a"
+foam = "#56949f"
+gold = "#ea9d34"
+
+[character]
+error_symbol = "[󰘧](bold love)"
+success_symbol = "[󰘧](bold pine)"
+
+[directory]
+truncate_to_repo = false
+style = "bold pine"
+
+[git_branch]
+symbol = " "
+truncation_length = 18
+style = "bold iris"
+
+[git_status]
+style = "love"
+
+[nix_shell]
+symbol = " "
+style = "foam"

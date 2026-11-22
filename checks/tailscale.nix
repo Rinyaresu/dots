@@ -30,6 +30,13 @@
     };
     # A credential-less Type=simple start can launch and interrupt gravity setup.
     systemd.services.pihole-ftl.wantedBy = lib.mkForce [ ];
+    # Do not inject production adlists into the offline fixture's Gravity DB.
+    systemd.services.pihole-ftl.environment.PIHOLE_MANAGED_LISTS_SQL = lib.mkForce "";
+    systemd.services.pihole-ftl-setup.environment.PIHOLE_MANAGED_LISTS_SQL = lib.mkForce "";
+    # This offline VM has no ACME credential. Keep certificate setup, but
+    # skip external orders; certificate publication is covered by checks/pihole.nix.
+    systemd.services."acme-order-renew-pihole.rinyaresu.dev".unitConfig.ConditionPathExists =
+      "/run/test-acme-credential";
     environment.systemPackages = [
       pkgs.python3
       pkgs.dig
@@ -44,6 +51,9 @@
     import json
 
     start_all()
+    # Pi-hole's link-local unit waits for eno1 at boot. Create the sandbox
+    # LAN before waiting for multi-user.target instead of waiting for a device timeout.
+    machine.succeed("set -e; ip netns add lan; ip link add eno1 type veth peer name lan-peer; ip link set lan-peer netns lan")
     machine.wait_for_unit("multi-user.target")
     machine.wait_for_unit("tailscaled.service")
     machine.fail("systemctl cat tailscaled-set.service")
@@ -100,7 +110,6 @@
 
     # Listeners let blocked cases distinguish firewall drops from closed ports.
     machine.succeed("nc -lk -p 23456 >/dev/null 2>&1 &")
-    machine.succeed("set -e; ip netns add lan; ip link add eno1 type veth peer name lan-peer; ip link set lan-peer netns lan")
     machine.succeed("set -e; ip addr add 192.168.1.196/24 dev eno1; ip addr add 192.168.2.196/24 dev eno1; ip -6 addr add 2001:db8:1::196/64 dev eno1 nodad; ip link set eno1 up")
     machine.succeed("set -e; ip -n lan link set lo up; ip -n lan link set lan-peer up; ip -n lan addr add 192.168.1.10/24 dev lan-peer; ip -n lan addr add 192.168.1.65/24 dev lan-peer; ip -n lan addr add 192.168.2.10/24 dev lan-peer; ip -n lan -6 addr add 2001:db8:1::10/64 dev lan-peer nodad")
     # Keep the real daemon running, but move its unauthenticated TUN aside so
@@ -129,6 +138,8 @@
         machine.succeed("systemctl start pihole-ftl")
         machine.wait_for_unit("pihole-ftl.service")
         try:
+            # Exercise the real setup unit without waiting for its weekly timer.
+            machine.succeed("systemctl start --no-block pihole-ftl-setup.service")
             machine.wait_until_succeeds("test $(systemctl show pihole-ftl-setup.service -p ExecMainStartTimestampMonotonic --value) -gt 0 && test $(systemctl show pihole-ftl-setup.service -p ActiveState --value) = inactive && test $(systemctl show pihole-ftl-setup.service -p Result --value) = success", timeout=60)
         except Exception:
             print(machine.execute("systemctl show pihole-ftl-setup.service -p ExecMainStartTimestampMonotonic -p ActiveState -p Result; journalctl -u pihole-ftl-setup.service --no-pager"))

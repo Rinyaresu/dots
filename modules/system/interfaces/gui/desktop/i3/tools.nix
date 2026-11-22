@@ -7,6 +7,15 @@
       ...
     }:
     let
+      separator = "<span foreground='#cecacd'>|</span>";
+      statusModule = position: settings: {
+        inherit position;
+        settings = {
+          separator = false;
+          separator_block_width = 10;
+        }
+        // settings;
+      };
       copyqClear = pkgs.writeShellScript "copyq-clear-clipboard" ''
         exec ${pkgs.copyq}/bin/copyq eval 'tab("&clipboard"); while (size()) remove(0);'
       '';
@@ -34,9 +43,55 @@
     in
     {
       key = "${__curPos.file}#homeManager.i3";
-      services.dunst = {
+      programs.i3status = {
         enable = true;
+        enableDefault = false;
+        general = {
+          output_format = "i3bar";
+          markup = "pango";
+          colors = true;
+          interval = 5;
+          color_good = "#286983";
+          color_degraded = "#ea9d34";
+          color_bad = "#b4637a";
+        };
+        modules = {
+          "wireless _first_" = statusModule 1 {
+            format_up = "WIFI %essid";
+            format_down = "";
+          };
+          "ethernet _first_" = statusModule 2 {
+            format_up = "${separator} LAN %ip";
+            format_down = "";
+          };
+          "path_exists WG" = statusModule 3 {
+            path = "/proc/sys/net/ipv4/conf/wg0";
+            format = "${separator} WG up";
+            format_down = "";
+          };
+          "battery all" = statusModule 4 {
+            format = "${separator} BAT %percentage %remaining";
+            format_down = "";
+            low_threshold = 10;
+            threshold_type = "percentage";
+          };
+          "volume master" = statusModule 5 {
+            format = "${separator} VOL %volume";
+            format_muted = "${separator} VOL muted";
+            device = "pulse";
+          };
+          memory = statusModule 6 {
+            format = "${separator} MEM %used";
+            threshold_degraded = "80%";
+            format_degraded = "${separator} MEM %used";
+          };
+          "tztime local" = statusModule 7 {
+            format = "${separator} %Y-%m-%d %H:%M:%S";
+          };
+        };
       };
+
+      services.dunst.enable = true;
       services.redshift = {
         enable = true;
         temperature = {
@@ -76,10 +131,13 @@
         };
       };
 
-      systemd.user.services.flameshot.Unit.ConditionEnvironment = "XDG_CURRENT_DESKTOP=i3";
+      systemd.user.services.flameshot = {
+        Unit.ConditionEnvironment = "XDG_CURRENT_DESKTOP=i3";
+        Service.Environment = [ "QT_QPA_PLATFORM=xcb" ];
+      };
 
       xsession.windowManager.i3.config.keybindings = lib.mkOptionDefault {
-        "Print" = "exec ${pkgs.flameshot}/bin/flameshot gui";
+        Print = "exec --no-startup-id ${pkgs.coreutils}/bin/env QT_QPA_PLATFORM=xcb ${pkgs.flameshot}/bin/flameshot gui";
         "Mod4+c" = "exec ${pkgs.copyq}/bin/copyq show";
         "Mod4+Shift+Delete" = "exec ${copyqClear}";
       };

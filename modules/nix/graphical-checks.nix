@@ -43,6 +43,9 @@ in
       mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
       ${pkgs.niri}/bin/niri validate --config ${home.xdg.configFile."niri/config.kdl".source}
       ${pkgs.niri}/bin/niri validate --config ${labHome.xdg.configFile."niri/config.kdl".source}
+      DBUS_SESSION_BUS_ADDRESS=1 ${home.xsession.windowManager.i3.package}/bin/i3 -C -c ${
+        home.xdg.configFile."i3/config".source
+      }
       ${pkgs.ghostty}/bin/ghostty +validate-config --config-file=${
         home.xdg.configFile."ghostty/config".source
       }

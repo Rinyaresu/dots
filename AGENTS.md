@@ -2,7 +2,7 @@
 
 Use o [README](README.md) para entender os hosts, a arquitetura e os comandos de verificação. Para outros repositórios pessoais, consulte o mapa do `home`.
 
-- **Escopo:** o flake configura NixOS, não o CachyOS atualmente em execução. Não confunda fonte declarada, geração ativa e bootada.
+- **Escopo:** o desktop já executa NixOS e é configurado por este flake. Não confunda fonte declarada, geração ativa e bootada.
 - **Composição:** `import-tree` descobre módulos sob `modules/`; arquivos de hardware importados diretamente usam prefixo `_`. Novas capacidades pertencem ao domínio responsável e são selecionadas por host em `modules/hosts/<host>/modules.nix`. Preserve `system.stateVersion` e `home.stateVersion`.
 - **Isolamento:** o `lab` permanece sem rede, diretórios ou store compartilhados; Ordis não recebe Home Manager nem a conta pessoal. Não amplie grants, SSH, firewall ou acesso entre máquinas incidentalmente.
 - **Segredos:** versionar apenas ciphertext SOPS revisado; identidades age, chaves privadas, senhas, tokens e estado mutável ficam fora de Git, store e logs publicados. Declare cada segredo junto da funcionalidade responsável; não copie credenciais entre hosts.

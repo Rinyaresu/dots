@@ -1,0 +1,15 @@
+[ui]
+theme = "light"
+
+[colors]
+accent = "#907aa9"
+heading = "#286983"
+comment = "#907aa9"
+looks-good = "#286983"
+delete = "#b4637a"
+comment-bg = "#f2e9e1"
+looks-good-bg = "#fffaf3"
+block = "#fffaf3"
+toolbar = "#f2e9e1"
+cursor = "#cecacd"
+selection = "#dfdad9"

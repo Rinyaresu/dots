@@ -141,7 +141,21 @@ class GraphicalTest(unittest.TestCase):
         self.assertFalse(config["nightlight"]["force"])
         self.assertTrue(config["location"]["custom_schedule"])
         self.assertEqual(config["theme"]["mode"], "light")
+
+    def test_noctalia_uses_secret_service_for_up_to_100_clipboard_entries(self):
+        config = tomllib.loads(Path(args.noctalia).read_text())
         self.assertEqual(config["storage"]["key_source"], "secret-service")
+        self.assertTrue(config["shell"]["clipboard_enabled"])
+        self.assertEqual(config["shell"]["clipboard_history_max_entries"], 100)
+
+    def test_noctalia_uses_the_official_wallpaper_without_rotation(self):
+        config = tomllib.loads(Path(args.noctalia).read_text())
+        wallpaper = config["wallpaper"]
+        path = Path(wallpaper["default"]["path"])
+        self.assertTrue(wallpaper["enabled"])
+        self.assertFalse(wallpaper["automation"]["enabled"])
+        self.assertEqual(path.name, "nix-wallpaper-simple-blue.png")
+        self.assertTrue(path.is_file())
 
     def test_i3_preserves_sleep_inhibitor_until_locker_ready(self):
         self.stub("i3lock", '''

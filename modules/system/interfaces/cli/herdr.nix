@@ -1,6 +1,27 @@
 { config, inputs, ... }:
 let
   fish = config.flake.modules.homeManager.fish;
+  packageFor =
+    system:
+    let
+      upstream = inputs.herdr.inputs.nixpkgs.legacyPackages.${system};
+      archive = "https://codeberg.org/vancluever/translate-c/archive/4e879eb8aba615de112eabd1231ea6e01920cead.tar.gz";
+    in
+    inputs.herdr.packages.${system}.herdr.override {
+      callPackage =
+        path: args:
+        upstream.callPackage path (
+          args
+          // {
+            # The bare archive URL returns HTTP 500; keep the upstream revision and hash.
+            fetchzip =
+              attrs:
+              upstream.fetchzip (
+                if (attrs.url or "") == archive then attrs // { url = "${archive}?download=1"; } else attrs
+              );
+          }
+        );
+    };
 in
 {
   flake.modules.homeManager.herdr =
@@ -11,7 +32,7 @@ in
       ...
     }:
     let
-      herdr = inputs.herdr.packages.${pkgs.stdenv.hostPlatform.system}.herdr;
+      herdr = packageFor pkgs.stdenv.hostPlatform.system;
     in
     {
       key = "${__curPos.file}#homeManager.herdr";
@@ -40,7 +61,7 @@ in
       programs.fish.interactiveShellInit = lib.mkBefore ''
         if status is-interactive; and isatty stdin
           if not set -q HERDR_ENV; and not set -q HERDR_PANE_ID; and not set -q HERDR_NO_AUTO
-            if not set -q SSH_CONNECTION; and not set -q SSH_TTY
+            if not set -q SSH_CONNECTION; and not set -q SSH_TTY; and not set -q TMUX
               if set -q WAYLAND_DISPLAY; or set -q DISPLAY
                 herdr
               end
@@ -59,23 +80,56 @@ in
       '';
     };
 
-  flake.modules.homeManager.desktop-personal = { lib, pkgs, ... }: {
-    key = "${__curPos.file}#homeManager.herdr-tree";
-    imports = [ config.flake.modules.homeManager.herdr ];
-    home.packages = [
-      pkgs.cargo
-      pkgs.rustc
-    ];
-    xdg.configFile."herdr/config.toml".text = lib.mkBefore ''
-      onboarding = false
-
-      [ui.sidebar.agents]
-      rows = [
-        ["state_icon", "$agent_tree_branch", "machine", "workspace", "tab"],
-        ["agent"],
+  flake.modules.homeManager.desktop-personal =
+    {
+      config,
+      lib,
+      pkgs,
+      ...
+    }:
+    let
+      herdr = packageFor pkgs.stdenv.hostPlatform.system;
+      script = name: pkgs.writeShellScriptBin name (builtins.readFile (./_herdr + "/${name}"));
+      links = pkgs.writeScriptBin "herdr-links" ''
+        #!${lib.getExe pkgs.python3}
+        ${builtins.readFile ./_herdr/herdr-links}
+      '';
+      pluginDir = "${config.xdg.configHome}/herdr/plugins-src/nvim-file-links";
+      annotate = pkgs.writeShellScriptBin "herdr-annotate-install" ''
+        set -euo pipefail
+        plugins="$(${lib.getExe herdr} plugin list --plugin annotate --json)"
+        if ${lib.getExe pkgs.jq} -e '.result.plugins | any(.plugin_id == "annotate")' <<< "$plugins" >/dev/null; then
+          printf '%s\n' 'Herdr Annotate já está instalado.'
+        else
+          exec ${lib.getExe herdr} plugin install plannotator/herdr-annotate
+        fi
+      '';
+    in
+    {
+      key = "${__curPos.file}#homeManager.herdr-desktop";
+      home.packages = [
+        pkgs.cargo
+        pkgs.rustc
+        pkgs.python3
+        pkgs.xdg-utils
+        links
+        annotate
       ]
-    '';
-  };
+      ++ map script [
+        "sessionizer"
+        "work"
+        "work-herdr"
+        "unwork"
+        "unwork-herdr"
+      ];
+      xdg.configFile."herdr/config.toml".text = lib.mkBefore (builtins.readFile ./_herdr/config.toml);
+      xdg.configFile."plannotator-tui/config.toml".source = ./_herdr/plannotator-tui.toml;
+      xdg.configFile."herdr/plugins-src/nvim-file-links".source = ./_herdr/nvim-file-links;
+      home.activation.herdrNvimFileLinks = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        run ${lib.getExe' pkgs.coreutils "env"} XDG_CONFIG_HOME=${lib.escapeShellArg config.xdg.configHome} \
+          ${lib.getExe herdr} plugin link ${lib.escapeShellArg pluginDir}
+      '';
+    };
 
   flake.modules.homeManager.base = {
     imports = [ config.flake.modules.homeManager.herdr ];
