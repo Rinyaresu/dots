@@ -1,4 +1,7 @@
 { config, ... }:
+let
+  inherit (config.flake.modules.homeManager) ghostty;
+in
 {
   flake.modules.nixos.niri =
     { pkgs, ... }:
@@ -12,12 +15,14 @@
 
   flake.modules.homeManager.niri =
     {
+      config,
       lib,
       osConfig,
       pkgs,
       ...
     }:
     let
+      isDesktop = osConfig.networking.hostName == "desktop";
       simpleBlue = pkgs.nixos-artwork.wallpapers.simple-blue;
       pactl = lib.getExe' pkgs.pulseaudio "pactl";
       brightnessctl = lib.getExe pkgs.brightnessctl;
@@ -59,15 +64,21 @@
 
         layout {
             background-color "#faf4ed"
-            focus-ring {
+            focus-ring {${lib.optionalString isDesktop "\n        width 2"}
                 active-color "#d7827e"
             }
         }
+        ${lib.optionalString isDesktop ''
 
+          window-rule {
+              geometry-corner-radius 10
+              clip-to-geometry true
+          }
+        ''}
         screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 
         binds {
-            Mod+Return { spawn "${pkgs.ghostty}/bin/ghostty"; }
+            Mod+Return { spawn "${lib.getExe config.programs.ghostty.package}"; }
             Mod+D { spawn-sh "${pkgs.noctalia}/bin/noctalia msg panel-toggle launcher"; }
             Mod+C { spawn-sh "${pkgs.noctalia}/bin/noctalia msg panel-toggle clipboard"; }
             Super+Alt+L { spawn-sh "${pkgs.noctalia}/bin/noctalia msg session lock"; }
@@ -137,8 +148,20 @@
         [storage]
         key_source = "secret-service"
 
-        [shell]
-        setup_wizard_enabled = false
+        ${lib.optionalString isDesktop ''
+          [accessibility]
+          ui_scale = 1.35
+
+          [bar.default]
+          font_scale = 1.50
+
+          [audio]
+          enable_overdrive = true
+
+        ''}[shell]
+        ${lib.optionalString isDesktop ''
+          font_family = "IosevkaTerm Nerd Font Mono"
+        ''}setup_wizard_enabled = false
         telemetry_enabled = false
         offline_mode = true
         polkit_agent = false
@@ -215,7 +238,7 @@
     in
     {
       key = "${__curPos.file}#homeManager.niri";
-      imports = [ config.flake.modules.homeManager.ghostty ];
+      imports = [ ghostty ];
       assertions = [
         {
           assertion = osConfig.programs.niri.enable;

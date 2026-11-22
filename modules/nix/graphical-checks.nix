@@ -39,6 +39,12 @@ in
           touch "$out"
         '';
     checks.graphical-config = pkgs.runCommand "graphical-config" { } ''
+      grep -F 'Mod+Return { spawn "${lib.getExe home.programs.ghostty.package}"; }' ${
+        home.xdg.configFile."niri/config.kdl".source
+      }
+      grep -F 'bindsym Mod4+Return exec ${lib.getExe home.programs.ghostty.package}' ${
+        home.xdg.configFile."i3/config".source
+      }
       export HOME="$TMPDIR/home" XDG_CONFIG_HOME="$TMPDIR/config" XDG_STATE_HOME="$TMPDIR/state"
       mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
       ${pkgs.niri}/bin/niri validate --config ${home.xdg.configFile."niri/config.kdl".source}
@@ -46,7 +52,7 @@ in
       DBUS_SESSION_BUS_ADDRESS=1 ${home.xsession.windowManager.i3.package}/bin/i3 -C -c ${
         home.xdg.configFile."i3/config".source
       }
-      ${pkgs.ghostty}/bin/ghostty +validate-config --config-file=${
+      ${lib.getExe home.programs.ghostty.package} +validate-config --config-file=${
         home.xdg.configFile."ghostty/config".source
       }
       ${pkgs.noctalia}/bin/noctalia config validate ${
