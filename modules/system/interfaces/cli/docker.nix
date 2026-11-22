@@ -9,6 +9,9 @@
         default-network-opts.bridge."com.docker.network.bridge.host_binding_ipv4" = "127.0.0.1";
       };
     };
-    environment.systemPackages = [ pkgs.docker-compose ];
+    environment.systemPackages = with pkgs; [
+      docker-compose
+      lazydocker
+    ];
   };
 }

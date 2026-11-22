@@ -15,6 +15,20 @@
       pciutils
       usbutils
       gh
+      eza
+      bat
+      _7zz
+      ffmpeg
+      imagemagick
+      poppler-utils
+      resvg
+      marksman
+      inotify-tools
+      tree-sitter
+      shfmt
+      stylua
+      moreutils
+      awscli2
     ];
   };
 }

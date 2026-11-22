@@ -9,9 +9,13 @@
       font-size = 15;
       adjust-cell-height = 1;
       cursor-style = "block";
-      cursor-style-blink = false;
-      window-padding-x = 4;
-      window-padding-y = 4;
+      cursor-style-blink = true;
+      window-padding-x = 0;
+      window-padding-y = 0;
+      background-opacity = 1.0;
+      confirm-close-surface = false;
+      window-decoration = "server";
+      gtk-titlebar = false;
     };
   };
 

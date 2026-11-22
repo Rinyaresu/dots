@@ -2,7 +2,7 @@
 
 Configuração NixOS multi-host com flakes, Home Manager e módulos por domínio. Cada host seleciona as capacidades de que precisa; a configuração e os testes ficam no próprio repositório.
 
-> O flake descreve o estado **desejado**, não necessariamente o sistema em execução. O `desktop` ainda roda CachyOS e não é gerenciado por este flake.
+> O flake descreve o estado **desejado**, não necessariamente o sistema em execução. O `desktop` já roda NixOS. A revisão declarada, a geração ativa e a geração bootada podem diferir.
 
 ## Arquitetura
 
@@ -27,7 +27,7 @@ flowchart TD
 
 | Output | Papel | Estado |
 | --- | --- | --- |
-| `desktop` | Estação pessoal com Home Manager, Niri e i3 | NixOS planejado; CachyOS em uso |
+| `desktop` | Estação pessoal com Home Manager, Niri e i3 | NixOS em uso |
 | `ordis` | Servidor doméstico com Pi-hole, SSH e Tailscale | NixOS em uso |
 | `lab` | VM isolada, sem rede nem compartilhamento do host | Somente testes |
 

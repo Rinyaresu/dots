@@ -3,9 +3,13 @@
   flake.modules.nixos.gui.services.gvfs.enable = true;
   flake.modules.homeManager.gui = { pkgs, ... }: {
     key = "${__curPos.file}#homeManager.files";
-    home.packages = [ pkgs.nautilus ];
+    home.packages = with pkgs; [
+      nautilus
+      vlc
+      qbittorrent
+    ];
     dconf.settings."org/gnome/desktop/media-handling" = {
-      automount = false;
+      automount = true;
       automount-open = false;
     };
   };
