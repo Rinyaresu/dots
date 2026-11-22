@@ -6,9 +6,17 @@ on:
   push:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact candidate commit expected at this ref (optional)
+        type: string
+        required: false
 
 permissions:
   contents: read
+
+env:
+  EXPECTED_SHA: ${{ inputs.expected_sha }}
 
 jobs:
   check:
@@ -21,6 +29,7 @@ jobs:
       - name: Verify checkout
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$EXPECTED_SHA" || test "$GITHUB_SHA" = "$EXPECTED_SHA"
           git log -1 --format='Tested commit: %H (parents: %P)'
           test -z "$(git status --porcelain)"
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
@@ -45,12 +54,14 @@ jobs:
       - name: Verify checkout
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$EXPECTED_SHA" || test "$GITHUB_SHA" = "$EXPECTED_SHA"
           git log -1 --format='Tested commit: %H (parents: %P)'
           test -z "$(git status --porcelain)"
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
       - name: Discover hosts and platforms
         id: hosts
         run: |
+          # shellcheck disable=SC2016
           matrix=$(nix eval --no-write-lock-file --json .#nixosConfigurations --apply '
             configs: builtins.map (host:
               let system = configs.${host}.config.nixpkgs.hostPlatform.system;
@@ -82,6 +93,7 @@ jobs:
       - name: Verify checkout
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$EXPECTED_SHA" || test "$GITHUB_SHA" = "$EXPECTED_SHA"
           git log -1 --format='Tested commit: %H (parents: %P)'
           test -z "$(git status --porcelain)"
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
