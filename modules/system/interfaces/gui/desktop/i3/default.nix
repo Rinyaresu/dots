@@ -1,5 +1,7 @@
 { config, ... }:
+
 let
+  inherit (config.flake.modules.homeManager) ghostty;
   lockCommand =
     pkgs:
     pkgs.writeShellScript "i3-lock" ''
@@ -51,6 +53,7 @@ in
 
   flake.modules.homeManager.i3 =
     {
+      config,
       lib,
       osConfig,
       pkgs,
@@ -96,7 +99,7 @@ in
     in
     {
       key = "${__curPos.file}#homeManager.i3";
-      imports = [ config.flake.modules.homeManager.ghostty ];
+      imports = [ ghostty ];
       assertions = [
         {
           assertion = osConfig.services.xserver.windowManager.i3.enable;
@@ -108,7 +111,7 @@ in
         enable = true;
         config = {
           modifier = "Mod4";
-          terminal = "${pkgs.ghostty}/bin/ghostty";
+          terminal = lib.getExe config.programs.ghostty.package;
           menu = ''${i3bin}/i3-dmenu-desktop --dmenu="${lib.getExe pkgs.dmenu} -i -fn '${font}-${fontSize}' -nb '${dawn.base}' -nf '${dawn.text}' -sb '${dawn.rose}' -sf '${dawn.base}'"'';
           inherit fonts;
           focus.followMouse = false;

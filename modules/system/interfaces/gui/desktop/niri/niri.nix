@@ -1,4 +1,7 @@
 { config, ... }:
+let
+  inherit (config.flake.modules.homeManager) ghostty;
+in
 {
   flake.modules.nixos.niri =
     { pkgs, ... }:
@@ -12,6 +15,7 @@
 
   flake.modules.homeManager.niri =
     {
+      config,
       lib,
       osConfig,
       pkgs,
@@ -74,7 +78,7 @@
         screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 
         binds {
-            Mod+Return { spawn "${pkgs.ghostty}/bin/ghostty"; }
+            Mod+Return { spawn "${lib.getExe config.programs.ghostty.package}"; }
             Mod+D { spawn-sh "${pkgs.noctalia}/bin/noctalia msg panel-toggle launcher"; }
             Mod+C { spawn-sh "${pkgs.noctalia}/bin/noctalia msg panel-toggle clipboard"; }
             Super+Alt+L { spawn-sh "${pkgs.noctalia}/bin/noctalia msg session lock"; }
@@ -234,7 +238,7 @@
     in
     {
       key = "${__curPos.file}#homeManager.niri";
-      imports = [ config.flake.modules.homeManager.ghostty ];
+      imports = [ ghostty ];
       assertions = [
         {
           assertion = osConfig.programs.niri.enable;
