@@ -40,6 +40,10 @@ jobs:
           df -h /
           sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/share/swift
           df -h /
+      - name: Test release discovery and proposals
+        run: |
+          python3 checks/update-releases.py
+          python3 checks/propose-flake.py
       - run: nix flake check --show-trace --no-write-lock-file -L
 
   prepare:

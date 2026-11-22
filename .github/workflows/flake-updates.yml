@@ -18,45 +18,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  plan:
+  update:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    outputs:
-      lock: ${{ steps.candidate.outputs.lock }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
-      - name: Probe updates
-        id: candidate
-        env:
-          ADVISORY: ${{ inputs.advisory }}
-          EVENT: ${{ github.event_name }}
-          SCHEDULE: ${{ github.event.schedule }}
-        run: |
-          if [[ "$EVENT" == workflow_dispatch && ! "$ADVISORY" =~ ^(CVE-[0-9]{4}-[0-9]{4,}|GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4})$ ]]; then
-            echo 'Invalid advisory identifier' >&2
-            exit 1
-          fi
-          nix flake update
-          git diff --exit-code -- . ':!flake.lock'
-          if git diff --quiet -- flake.lock; then
-            echo 'No updates for the configured input references.' >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          echo 'Updates available for the configured input references.' >> "$GITHUB_STEP_SUMMARY"
-          git diff --stat -- flake.lock >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$EVENT" == workflow_dispatch || "$SCHEDULE" == '41 8 * * 1' ]]; then
-            printf 'lock=%s\n' "$(base64 -w0 flake.lock)" >> "$GITHUB_OUTPUT"
-          fi
-
-  publish:
-    needs: plan
-    if: needs.plan.outputs.lock != ''
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [general, pi, herdr]
     permissions:
       contents: write
       pull-requests: write
@@ -65,49 +33,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Open proposal and explicitly request CI
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
+      - name: Probe and propose ${{ matrix.lane }}
         env:
           GH_TOKEN: ${{ github.token }}
-          LOCK: ${{ needs.plan.outputs.lock }}
+          LANE: ${{ matrix.lane }}
           ADVISORY: ${{ inputs.advisory }}
-        run: |
-          set -euo pipefail
-          latest=$(gh api --method GET "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq .object.sha)
-          if [[ "$latest" != "$GITHUB_SHA" ]]; then
-            echo 'master moved since the probe; not publishing a stale proposal.' >&2
-            exit 1
-          fi
-          branch="automation/flake-lock-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          printf '%s' "$LOCK" | base64 --decode > flake.lock
-          jq -e '.version and .nodes and .root' flake.lock >/dev/null
-          git diff --quiet -- flake.lock && exit 1
-          title='chore: update flake inputs'
-          if [[ -n "$ADVISORY" ]]; then title="security: update flake inputs for $ADVISORY"; fi
-          candidate=$(git hash-object flake.lock)
-          open=$(gh pr list --repo "$GITHUB_REPOSITORY" --base master --state open --limit 100 \
-            --json headRefName,headRefOid,title,isCrossRepository \
-            --jq '.[] | select(.isCrossRepository == false and (.headRefName | startswith("automation/flake-lock-"))) | [.headRefOid,.title] | @tsv')
-          while IFS=$'\t' read -r previous previous_title; do
-            [[ "$previous" =~ ^[a-f0-9]{40}$ && "$previous_title" == "$title" ]] || continue
-            blob=$(gh api --method GET "repos/$GITHUB_REPOSITORY/contents/flake.lock?ref=$previous" --jq .sha)
-            if [[ "$candidate" == "$blob" ]]; then
-              echo 'An identical candidate already has an open PR.' >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-          done <<< "$open"
-          git add -- flake.lock
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            commit -m 'chore: update flake inputs'
-          sha=$(git rev-parse HEAD)
-          GIT_TERMINAL_PROMPT=0 git -c 'credential.helper=' \
-            -c 'credential.helper=!gh auth git-credential' push origin "HEAD:refs/heads/$branch"
-          gh workflow run check.yml --repo "$GITHUB_REPOSITORY" --ref "$branch" -f expected_sha="$sha"
-          checks="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/check.yml?query=branch%3A$branch"
-          body="Review the lockfile changes and [Checks for this branch]($checks). This proposal does not merge, deploy or reboot anything."
-          if [[ -n "$ADVISORY" ]]; then
-            body="Priority review for $ADVISORY. Verify that the candidate actually includes the fix before accepting. $body"
-          fi
-          gh pr create --repo "$GITHUB_REPOSITORY" --base master --head "$branch" --title "$title" --body "$body" || {
-            echo 'PR creation failed. Confirm repository policy allows GitHub Actions to create PRs. CI was dispatched independently.' >&2
-            exit 1
-          }
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: bash .github/propose-flake.sh
