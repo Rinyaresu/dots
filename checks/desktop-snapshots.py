@@ -1,7 +1,6 @@
 start_all()
 machine.wait_for_unit("multi-user.target")
-machine.fail("systemctl cat nix-gc.timer")
-machine.fail("systemctl is-active nix-gc.service")
+machine.succeed("systemctl is-enabled nix-gc.timer")
 
 def snapshots():
     output = machine.succeed(

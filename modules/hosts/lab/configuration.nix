@@ -22,6 +22,10 @@
     };
     assertions = [
       {
+        assertion = !config.nix.gc.automatic && !(config.systemd.timers ? nix-gc);
+        message = "Lab must keep Nix garbage collection manual.";
+      }
+      {
         assertion = !config.services.pihole-ftl.enable;
         message = "The lab must not run Pi-hole.";
       }

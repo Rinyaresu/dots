@@ -25,6 +25,7 @@
     time.timeZone = "UTC";
     systemd.timers.snapper-timeline.wantedBy = lib.mkForce [ ];
     systemd.timers.snapper-cleanup.wantedBy = lib.mkForce [ ];
+    systemd.services.nix-gc.unitConfig.ConditionPathExists = "/run/enable-gc-in-snapshot-test";
     environment.systemPackages = [ pkgs.python3 ];
   };
   testScript = builtins.readFile ./desktop-snapshots.py;
