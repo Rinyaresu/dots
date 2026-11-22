@@ -32,5 +32,7 @@ console="$(split "$watch" down)"
 testing="$(split "$watch" right)"
 run "$watch" "yarn test-watch"
 run "$console" "bundle exec rails console"
-run "$testing" "testing"
+if [[ -x "$start_dir/bin/testing" ]]; then
+  run "$testing" "bin/testing"
+fi
 herdr tab focus "$(jq -er '.result.tab.tab_id' <<< "$dev")"

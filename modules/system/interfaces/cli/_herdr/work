@@ -17,7 +17,6 @@ CMD_SIDEKIQ="bundle exec sidekiq"
 
 CMD_TEST_WATCH="yarn test-watch"
 CMD_RAILS_CONSOLE="bundle exec rails console"
-CMD_TESTING="testing"
 
 WIN_SHELL_NAME="shell"
 WIN_APP_NAME="dev"
@@ -50,7 +49,9 @@ tmux send-keys -t "$PANE_BOTTOM_ID" "$CMD_RAILS_CONSOLE" "C-m"
 
 PANE_TOP_RIGHT_ID=$(tmux split-window -h -p 50 -P -F '#{pane_id}' -t "$PANE_TOP_LEFT_ID" -c "$START_DIR")
 tmux send-keys -t "$PANE_TOP_LEFT_ID"  "$CMD_TEST_WATCH" "C-m"
-tmux send-keys -t "$PANE_TOP_RIGHT_ID" "$CMD_TESTING" "C-m"
+if [[ -x "$START_DIR/bin/testing" ]]; then
+  tmux send-keys -t "$PANE_TOP_RIGHT_ID" "bin/testing" "C-m"
+fi
 
 if [ -n "$WIN_SHELL_ID" ]; then
   tmux select-window -t "$WIN_SHELL_ID"
