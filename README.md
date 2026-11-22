@@ -43,6 +43,8 @@ nix build --no-link --no-write-lock-file .#nixosConfigurations.ordis.config.syst
 
 Troque `ordis` por `desktop` ou `lab` conforme o alvo. Os testes de runtime em KVM são packages separados, por exemplo `nix build --no-link -L .#packages.x86_64-linux.secret-runtime`. Build e VM não ativam a configuração nem validam o hardware real. A CI executa checks e builds dos hosts, mas não todos os testes de runtime.
 
+O workflow de atualização consulta releases estáveis do Pi e do Herdr e propõe as referências junto do `flake.lock`. A sondagem é diária; a proposta é semanal ou para um advisory informado manualmente. A publicação depende de a política do repositório permitir que o GitHub Actions crie PRs e conceda as permissões solicitadas pelo workflow. Se a criação falhar, confira o log e a política antes de autorizar qualquer mudança de permissões; o workflow tenta disparar os checks antes de criar o PR. Nenhuma atualização faz merge ou deploy.
+
 ## Segredos
 
 SOPS/age guarda apenas **ciphertext** no Git. O módulo consumidor declara a fonte cifrada e a entrega em runtime; identidades age privadas, passphrases e tokens não entram no Git, no Nix store ou em logs publicados. Novas credenciais cifradas podem pertencer ao módulo que as utiliza, sem criar um arquivo central com todos os segredos.

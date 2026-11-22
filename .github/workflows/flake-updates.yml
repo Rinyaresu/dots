@@ -25,6 +25,7 @@ jobs:
       contents: read
     outputs:
       lock: ${{ steps.candidate.outputs.lock }}
+      flake: ${{ steps.candidate.outputs.flake }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -33,6 +34,7 @@ jobs:
       - name: Probe updates
         id: candidate
         env:
+          GH_TOKEN: ${{ github.token }}
           ADVISORY: ${{ inputs.advisory }}
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
@@ -41,9 +43,11 @@ jobs:
             echo 'Invalid advisory identifier' >&2
             exit 1
           fi
+          set -euo pipefail
+          python3 .github/update-releases.py
           nix flake update
-          git diff --exit-code -- . ':!flake.lock'
-          if git diff --quiet -- flake.lock; then
+          git diff --exit-code -- . ':!flake.lock' ':!flake.nix'
+          if git diff --quiet -- flake.lock flake.nix; then
             echo 'No updates for the configured input references.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -51,6 +55,7 @@ jobs:
           git diff --stat -- flake.lock >> "$GITHUB_STEP_SUMMARY"
           if [[ "$EVENT" == workflow_dispatch || "$SCHEDULE" == '41 8 * * 1' ]]; then
             printf 'lock=%s\n' "$(base64 -w0 flake.lock)" >> "$GITHUB_OUTPUT"
+            printf 'flake=%s\n' "$(base64 -w0 flake.nix)" >> "$GITHUB_OUTPUT"
           fi
 
   publish:
@@ -69,6 +74,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LOCK: ${{ needs.plan.outputs.lock }}
+          FLAKE: ${{ needs.plan.outputs.flake }}
           ADVISORY: ${{ inputs.advisory }}
         run: |
           set -euo pipefail
@@ -79,23 +85,26 @@ jobs:
           fi
           branch="automation/flake-lock-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           printf '%s' "$LOCK" | base64 --decode > flake.lock
+          printf '%s' "$FLAKE" | base64 --decode > flake.nix
           jq -e '.version and .nodes and .root' flake.lock >/dev/null
-          git diff --quiet -- flake.lock && exit 1
+          git diff --quiet -- flake.lock flake.nix && exit 1
           title='chore: update flake inputs'
           if [[ -n "$ADVISORY" ]]; then title="security: update flake inputs for $ADVISORY"; fi
           candidate=$(git hash-object flake.lock)
+          candidate_flake=$(git hash-object flake.nix)
           open=$(gh pr list --repo "$GITHUB_REPOSITORY" --base master --state open --limit 100 \
             --json headRefName,headRefOid,title,isCrossRepository \
             --jq '.[] | select(.isCrossRepository == false and (.headRefName | startswith("automation/flake-lock-"))) | [.headRefOid,.title] | @tsv')
           while IFS=$'\t' read -r previous previous_title; do
             [[ "$previous" =~ ^[a-f0-9]{40}$ && "$previous_title" == "$title" ]] || continue
             blob=$(gh api --method GET "repos/$GITHUB_REPOSITORY/contents/flake.lock?ref=$previous" --jq .sha)
-            if [[ "$candidate" == "$blob" ]]; then
+            flake_blob=$(gh api --method GET "repos/$GITHUB_REPOSITORY/contents/flake.nix?ref=$previous" --jq .sha)
+            if [[ "$candidate" == "$blob" && "$candidate_flake" == "$flake_blob" ]]; then
               echo 'An identical candidate already has an open PR.' >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
           done <<< "$open"
-          git add -- flake.lock
+          git add -- flake.nix flake.lock
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
             commit -m 'chore: update flake inputs'
           sha=$(git rev-parse HEAD)
