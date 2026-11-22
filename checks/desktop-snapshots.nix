@@ -4,6 +4,7 @@
   nodes.machine = { lib, pkgs, ... }: {
     imports = [
       nixos.home-snapshots
+      nixos.zram
       nixos.nix-settings
       (import ../modules/hosts/desktop/maintenance.nix).configurations.nixos.desktop.modules.maintenance
     ];
@@ -22,6 +23,7 @@
     };
     users.users.alice.isNormalUser = true;
     services.timesyncd.enable = false;
+    services.btrfs.autoScrub.fileSystems = [ "/home" ];
     time.timeZone = "UTC";
     systemd.timers.snapper-timeline.wantedBy = lib.mkForce [ ];
     systemd.timers.snapper-cleanup.wantedBy = lib.mkForce [ ];

@@ -1,6 +1,11 @@
 start_all()
 machine.wait_for_unit("multi-user.target")
-machine.succeed("systemctl is-enabled nix-gc.timer")
+machine.succeed("systemctl is-enabled nix-gc.timer btrfs-scrub-home.timer smartd.service")
+machine.succeed("systemctl is-active nix-gc.timer btrfs-scrub-home.timer")
+machine.succeed("grep -Eq '^/dev/zram[0-9]+[[:space:]]' /proc/swaps")
+machine.succeed("grep -F '[zstd]' /sys/block/zram0/comp_algorithm")
+machine.succeed("systemctl start btrfs-scrub-home.service")
+machine.wait_until_succeeds("btrfs scrub status /home | grep -E 'Status:[[:space:]]+finished'")
 
 def snapshots():
     output = machine.succeed(
