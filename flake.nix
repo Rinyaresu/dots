@@ -12,7 +12,7 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
-    pi.url = "github:earendil-works/pi/v1.5.0";
+    pi.url = "github:earendil-works/pi/v1.6.1";
     pi.inputs.nixpkgs.follows = "nixpkgs";
     pi.inputs.nixpkgs-darwin-x64.follows = "nixpkgs";
     herdr.url = "github:herdrdev/herdr/v0.9.5";
